@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/vedhabbu/Desktop/cockpit -maxdepth 2 -iname \"*.png\" -o -iname \"*.jpg\" -o -iname \"*.jpeg\" | grep -v node_modules; echo \"---\"; find /private/tmp/claude-501 -maxdepth 4 -iname \"*.png\" -newer /Users/vedhabbu/Desktop/cockpit/src/App.jsx 2>/dev/null)",
+      "Bash(python3 -c ' *)",
+      "Bash(sips -g pixelWidth -g pixelHeight src/assets/Thumbnail.png)",
+      "Bash(pip3 show *)",
+      "Bash(pip3 install *)",
+      "Bash(lsof -i :5173 -sTCP:LISTEN)",
+      "Bash(npm install *)",
+      "Bash(kill 79719)",
+      "Bash(grep -n \"<NavCard\\\\|</div>\\\\s*$\\\\|<DemoControlBar\" /Users/vedhabbu/Desktop/cockpit/src/App.jsx)"
+    ]
+  }
+}

@@ -1,0 +1,1580 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+/* ── Design tokens ── */
+:root {
+  --bg: #08090D;
+  --card-top: #1B1F2A;
+  --card-bottom: #0F1219;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border-top: rgba(255, 255, 255, 0.14);
+  --card-radius: 24px;
+  --card-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.28),
+    0 16px 40px rgba(0, 0, 0, 0.38);
+  --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --accent-start: #4F8FFF;
+  --accent-end: #9B6BFF;
+  --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  --status-positive: #3DDC84;
+  --text-primary: #F5F6FA;
+  --text-muted: #8B90A0;
+  --touch-min: 64px;
+  --touch-primary: 72px;
+  --gap: 20px;
+  --nav-width: 90px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Viewport reset ── */
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  text-align: left;
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── Shell ── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100dvh;
+}
+
+.cockpit {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background-color: var(--bg);
+  background-image: radial-gradient(
+    ellipse 50% 45% at 96% 4%,
+    rgba(79, 143, 255, 0.14) 0%,
+    rgba(155, 107, 255, 0.06) 50%,
+    transparent 72%
+  );
+  font-family: var(--font);
+  color: var(--text-primary);
+}
+
+.cockpit *,
+.cockpit *::before,
+.cockpit *::after {
+  box-sizing: border-box;
+}
+
+/* ── Nav rail ── */
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: var(--nav-width);
+  flex-shrink: 0;
+  padding: var(--gap) 10px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 24px;
+  border-radius: 14px;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 20px rgba(79, 143, 255, 0.35);
+}
+
+.nav-logo svg {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--touch-min);
+  padding: 10px 4px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.nav-item__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.nav-item__label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.nav-item.active {
+  color: var(--accent-start);
+  background: rgba(79, 143, 255, 0.12);
+  box-shadow:
+    0 0 20px rgba(79, 143, 255, 0.18),
+    inset 0 0 0 1px rgba(79, 143, 255, 0.2);
+}
+
+.nav-item:not(.active):hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Main panel ── */
+.main-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--gap) var(--gap) var(--gap) 0;
+  gap: var(--gap);
+}
+
+/* ── Top bar ── */
+.top-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.top-time {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.drive-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border: 1px solid var(--card-border);
+  border-top-color: var(--card-border-top);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), var(--card-highlight);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  justify-self: center;
+}
+
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(79, 143, 255, 0.35);
+}
+
+.profile-avatar svg {
+  width: 15px;
+  height: 15px;
+}
+
+.drive-mode-pill__chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.weather {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.weather svg {
+  width: 18px;
+  height: 18px;
+}
+
+.alert-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.alert-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.alert-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Content layout ── */
+.content-area {
+  display: flex;
+  flex: 1;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+/* While the proactive suggestion is showing: without this, content-area's
+   min-height: 0 lets main-panel shrink it below what nav-card/bottom-row's
+   floors actually need — the cards themselves still refuse to shrink
+   further, so the overflow spills past content-area's undersized box and
+   visually overlaps the suggestion bar below it. This pins content-area to
+   exactly nav-card's floor + gap + bottom-row's floor so that can't happen.
+   (Using an explicit px value here rather than min-height: auto, which
+   pulled in more than the intended floor and regressed the idle state.) */
+.content-area--compact {
+  min-height: 476px;
+}
+
+.left-column {
+  flex: 0 0 38%;
+  min-width: 0;
+  display: flex;
+}
+
+.right-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.bottom-row {
+  display: flex;
+  gap: var(--gap);
+  flex: 1;
+  /* Floor sized to the compact media-card layout's real content height
+     (art + progress + controls + padding) so the play/next/prev buttons
+     can never be squeezed into overflow: hidden clipping — that was the
+     bug: this used to be min-height: 0, so bottom-row would shrink below
+     usable size and the media controls became unclickable. */
+  min-height: 215px;
+}
+
+.bottom-row .card {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Card base ── */
+.card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  border: 1px solid var(--card-border);
+  border-top-color: var(--card-border-top);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  /* Makes each card (nav/media/climate) a size query container so its own
+     inner elements can scale off the card's actual rendered width (cqw) —
+     not the viewport's — regardless of why the card got narrow (a small
+     window, or flex just giving it less room). Coefficients below are
+     tuned so clamp() hits its max — the original, pre-responsive size —
+     at the card's normal desktop width, and only shrinks below that. */
+  container-type: inline-size;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--card-highlight);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Speed hero panel (full-bleed, not a card) ── */
+.speed-hero-panel {
+  position: relative;
+  flex: 1;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.speed-hero-panel__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+
+.speed-hero-panel__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 28px 28px;
+}
+
+/* ── Gear selector ── */
+.gear-selector {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.gear-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(8, 9, 13, 0.55);
+  backdrop-filter: blur(8px);
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.gear-segment.active {
+  color: var(--text-primary);
+  background: var(--accent-gradient);
+  border-color: transparent;
+  box-shadow: 0 0 24px rgba(79, 143, 255, 0.35);
+}
+
+.gear-segment:not(.active):hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ── Speed readout ── */
+.speed-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 28px;
+}
+
+.speed-value {
+  font-size: clamp(80px, 11vw, 128px);
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-unit {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+}
+
+.speed-hero-panel__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: auto;
+}
+
+.battery-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.battery-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.battery-labels__charge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.battery-labels__charge svg {
+  width: 14px;
+  height: 14px;
+  color: var(--status-positive);
+}
+
+.battery-labels__range {
+  color: var(--text-primary);
+}
+
+.status-positive {
+  color: var(--status-positive);
+}
+
+.status-warning {
+  color: #f0b95c;
+}
+
+.progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-gradient);
+}
+
+.progress-fill--warning {
+  background: linear-gradient(135deg, #f0b95c, #e2793a);
+}
+
+.status-chips {
+  display: flex;
+  gap: 8px;
+}
+
+.chip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(8, 9, 13, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chip__label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.chip__value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ── Navigation card ── */
+.nav-card {
+  flex: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  /* Floor sized to the maneuver pill + search field + a shrunk map so the
+     search input can never be squeezed into overflow: hidden clipping. */
+  min-height: 241px;
+}
+
+.maneuver-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px 10px 10px;
+  border-radius: var(--card-radius);
+  background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  border: 1px solid var(--card-border);
+  border-top-color: var(--card-border-top);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+  flex-shrink: 0;
+}
+
+.maneuver-pill__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.maneuver-pill__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(30px, 5.96cqw, 40px);
+  height: clamp(30px, 5.96cqw, 40px);
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 16px rgba(79, 143, 255, 0.35);
+}
+
+.maneuver-pill__icon svg {
+  width: clamp(15px, 2.98cqw, 20px);
+  height: clamp(15px, 2.98cqw, 20px);
+}
+
+.maneuver-pill__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.maneuver-pill__title {
+  font-size: clamp(11px, 2.09cqw, 14px);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.maneuver-pill__subtitle {
+  font-size: clamp(10px, 1.79cqw, 12px);
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.maneuver-pill__distance {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.maneuver-pill__distance-value {
+  font-size: clamp(12px, 2.38cqw, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.maneuver-pill__distance-unit {
+  font-size: clamp(9px, 1.64cqw, 11px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.map-placeholder {
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #12151C 0%, #0A0C12 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* The map is purely decorative (no interactive content of its own), so it's
+   the one thing allowed to shrink further while the proactive suggestion is
+   showing — freeing room without ever touching the maneuver pill/search
+   field (both protected by .nav-card's min-height) or the media controls. */
+.map-placeholder--compact {
+  min-height: 40px;
+}
+
+.map-placeholder .maplibregl-map {
+  width: 100%;
+  height: 100%;
+}
+
+.map-placeholder .maplibregl-ctrl-logo,
+.map-placeholder .maplibregl-ctrl-attrib {
+  display: none;
+}
+
+/* Map markers — vehicle (fixed position) and fixed points of interest */
+.map-marker--vehicle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(8, 9, 13, 0.65), 0 0 14px rgba(79, 143, 255, 0.6);
+}
+
+.map-marker--vehicle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.map-marker--destination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #f5f6fa;
+  color: #08090d;
+  box-shadow: 0 0 0 3px rgba(8, 9, 13, 0.65), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.map-marker--destination svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+}
+
+.map-marker--charger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-marker__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #08090d;
+}
+
+.map-marker__badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+.map-marker__label {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(8, 9, 13, 0.75);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.map-marker--charger .map-marker__badge {
+  background: var(--status-positive);
+  box-shadow: 0 0 0 3px rgba(8, 9, 13, 0.7), 0 0 12px rgba(61, 220, 132, 0.55);
+}
+
+.map-marker--charger .map-marker__label {
+  border: 1px solid rgba(61, 220, 132, 0.4);
+  color: var(--status-positive);
+}
+
+.nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.nav-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-meta__item svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.nav-meta__item--eta svg {
+  color: var(--status-positive);
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.search-field__icon {
+  position: absolute;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 0 16px 0 46px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  border-top-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input:focus {
+  border-color: rgba(79, 143, 255, 0.45);
+}
+
+/* Subtle not-found/error indication — a soft border tint plus a small
+   message that floats below the field without shifting layout. */
+.search-field--warning .search-input {
+  border-color: rgba(240, 185, 92, 0.4);
+}
+
+.search-field__status {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 46px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #f0b95c;
+  animation: search-status-in 0.2s ease;
+}
+
+@keyframes search-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-field__spinner {
+  position: absolute;
+  right: 16px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent-start);
+  animation: search-spinner-spin 0.7s linear infinite;
+}
+
+@keyframes search-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Media card ── */
+.media-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(8px, 4.67cqw, 16px);
+  padding: clamp(12px, 5.84cqw, 20px) clamp(12px, 7cqw, 24px);
+}
+
+/* While the proactive suggestion is showing: the 112px art is what actually
+   forces the card's height, so shrinking it is what makes room without
+   clipping the controls. */
+.media-card--compact {
+  gap: clamp(6px, 2.92cqw, 10px);
+  padding: clamp(8px, 3.5cqw, 12px) clamp(10px, 5.84cqw, 20px);
+}
+
+.media-top {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 5.46cqw, 16px);
+}
+
+/* The source thumbnail has a soft glow and transparent padding baked in
+   around the solid artwork, so displaying it plainly both insets the
+   visible art from the box's true edges (misaligning it with the progress
+   bar below) and shows the glow as an unwanted halo. This frame clips a
+   precisely-cropped background image — sized/positioned to the artwork's
+   actual opaque bounds — so only the clean icon fills the box edge-to-edge,
+   with no glow and no inset. Scales with the card's own width (cqw) so it
+   shrinks smoothly on narrow cards instead of overflowing. */
+.media-art-frame {
+  width: clamp(36px, 30.03cqw, 88px);
+  height: clamp(36px, 30.03cqw, 88px);
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 20%;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+.media-card--compact .media-art-frame {
+  width: clamp(20px, 14.81cqw, 44px);
+  height: clamp(20px, 14.81cqw, 44px);
+}
+
+/* Percentages (not fixed px) for the crop math, derived from the same
+   source-image bounds as before — percentages resolve relative to this
+   element's own box, so the exact same crop holds at every frame size
+   above instead of only the two sizes it used to be hardcoded for. */
+.media-art {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 165.92% 165.92%;
+  background-position: 49.42% 34.87%;
+}
+
+.media-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-title {
+  margin: 0;
+  font-size: clamp(12px, 5.46cqw, 16px);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist {
+  margin: 0;
+  font-size: clamp(10px, 4.44cqw, 13px);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-progress {
+  flex-shrink: 0;
+}
+
+.media-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: clamp(9px, 3.75cqw, 11px);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.media-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 4.1cqw, 12px);
+  flex-shrink: 0;
+}
+
+.control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 1px solid var(--card-border);
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+/* Scoped override: shrinks the media card's own control buttons with the
+   card's width without touching --touch-min, which other cards still use
+   at full size. */
+.media-card .control-btn {
+  width: clamp(38px, 21.84cqw, 64px);
+  height: clamp(38px, 21.84cqw, 64px);
+}
+
+.control-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.media-card .control-btn svg {
+  width: clamp(14px, 7.51cqw, 22px);
+  height: clamp(14px, 7.51cqw, 22px);
+}
+
+.control-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.control-btn--play {
+  width: var(--touch-primary);
+  height: var(--touch-primary);
+  border: none;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow:
+    0 0 24px rgba(79, 143, 255, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.media-card .control-btn--play {
+  width: clamp(42px, 24.57cqw, 72px);
+  height: clamp(42px, 24.57cqw, 72px);
+}
+
+.control-btn--play svg {
+  width: 26px;
+  height: 26px;
+}
+
+.media-card .control-btn--play svg {
+  width: clamp(16px, 8.87cqw, 26px);
+  height: clamp(16px, 8.87cqw, 26px);
+}
+
+.control-btn--play:hover {
+  color: #FFFFFF;
+  box-shadow:
+    0 0 32px rgba(79, 143, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ── Climate card ── */
+.climate-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(12px, 5.84cqw, 20px) clamp(12px, 7cqw, 24px) clamp(14px, 7cqw, 24px);
+}
+
+.climate-tabs {
+  display: flex;
+  justify-content: space-between;
+}
+
+.climate-tab {
+  border: none;
+  background: none;
+  padding: 6px 2px 10px;
+  font-family: var(--font);
+  font-size: clamp(10px, 4.44cqw, 13px);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.climate-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.climate-tab.active {
+  color: var(--text-primary);
+}
+
+.climate-tab.active::after {
+  background: var(--accent-gradient);
+}
+
+.climate-tab:not(.active):hover {
+  color: var(--text-primary);
+}
+
+.climate-temp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 2.73cqw, 8px);
+  flex: 1;
+}
+
+.temp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(40px, 24.57cqw, 72px);
+  height: clamp(40px, 24.57cqw, 72px);
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  border-top-color: var(--card-border-top);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: clamp(18px, 9.56cqw, 28px);
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.temp-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.temp-btn--increase {
+  border: none;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 18px rgba(79, 143, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.temp-btn--increase:hover {
+  color: #ffffff;
+  box-shadow: 0 0 24px rgba(79, 143, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Its own size query container: the +/- buttons and the gaps around this
+   element eat into climate-temp's width first, so sizing the number off
+   the CARD's width (like everything else) let it claim more space than
+   temp-display actually had left, overflowing into the "+" button. Sizing
+   off temp-display's own (already-reduced-by-its-siblings) width instead
+   guarantees the number can never be wider than the room it was actually
+   given, at any card width. */
+.temp-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.temp-value {
+  width: 100%;
+  font-size: clamp(18px, 36cqw, 52px);
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+
+.fan-speed {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 5.46cqw, 16px);
+  flex-shrink: 0;
+}
+
+.fan-speed__label {
+  flex-shrink: 0;
+  font-size: clamp(8px, 3.75cqw, 11px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.fan-speed__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(3px, 2.05cqw, 6px);
+  height: clamp(18px, 10.92cqw, 32px);
+  flex: 1;
+}
+
+.fan-speed__segment {
+  flex: 1;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.fan-speed__segment:nth-child(1) {
+  height: 32%;
+}
+
+.fan-speed__segment:nth-child(2) {
+  height: 52%;
+}
+
+.fan-speed__segment:nth-child(3) {
+  height: 68%;
+}
+
+.fan-speed__segment:nth-child(4) {
+  height: 84%;
+}
+
+.fan-speed__segment:nth-child(5) {
+  height: 100%;
+}
+
+.fan-speed__segment.active {
+  background: var(--accent-gradient);
+  box-shadow: 0 0 10px rgba(79, 143, 255, 0.3);
+}
+
+/* ── Proactive suggestion — Stage B: the copilot speaks first, not in
+   response to a command. Amber accent + "COPILOT SUGGESTION" eyebrow
+   distinguish it from CopilotBar's reactive responses.
+
+   Lives in normal flow as its own bar just above CopilotBar — never inside
+   or over the nav/media/climate cards. To keep bottom-row (media/climate)
+   from being squeezed below a usable size when this appears, MediaCard
+   shrinks its art (see `compact` prop) and .bottom-row/.nav-card have
+   min-height floors sized to fit without it. ── */
+.proactive-suggestion {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 24px;
+  border-radius: var(--card-radius);
+  background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  border: 1px solid rgba(240, 185, 92, 0.35);
+  border-top-color: rgba(240, 185, 92, 0.5);
+  box-shadow: var(--card-shadow), 0 0 24px rgba(240, 185, 92, 0.12);
+  animation: proactive-suggestion-in 0.35s ease;
+}
+
+@keyframes proactive-suggestion-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.proactive-suggestion__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proactive-suggestion__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0b95c;
+}
+
+.proactive-suggestion__eyebrow svg {
+  width: 12px;
+  height: 12px;
+}
+
+.proactive-suggestion__message {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.proactive-suggestion__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.proactive-suggestion__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, box-shadow 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.proactive-suggestion__btn--primary {
+  border: none;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 16px rgba(79, 143, 255, 0.35);
+}
+
+.proactive-suggestion__btn--primary:hover {
+  box-shadow: 0 0 22px rgba(79, 143, 255, 0.5);
+}
+
+.proactive-suggestion__btn--secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text-muted);
+}
+
+.proactive-suggestion__btn--secondary:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+/* ── Copilot bar — the headline feature, premium cockpit styling ── */
+.copilot-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);
+  border: 1px solid var(--card-border);
+  border-top-color: var(--card-border-top);
+  box-shadow: var(--card-shadow), var(--card-highlight);
+}
+
+.copilot-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.copilot-bar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: var(--accent-gradient);
+  color: var(--text-primary);
+  box-shadow: 0 0 10px rgba(79, 143, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.copilot-bar__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.copilot-bar__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 400;
+  outline: none;
+}
+
+.copilot-bar__input::placeholder {
+  color: var(--text-muted);
+}
+
+.copilot-bar__mic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.copilot-bar__mic svg {
+  width: 18px;
+  height: 18px;
+}
+
+.copilot-bar__mic:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.copilot-bar__mic--listening {
+  color: var(--text-primary);
+  background: var(--accent-gradient);
+  border-color: transparent;
+  box-shadow: 0 0 0 rgba(79, 143, 255, 0.5);
+  animation: copilot-mic-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes copilot-mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 143, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(79, 143, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 143, 255, 0);
+  }
+}
+
+.copilot-bar__response-slot {
+  padding-left: 50px;
+}
+
+.copilot-bar__voice-status {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.copilot-bar__voice-status--error {
+  color: #f0b95c;
+}
+
+.copilot-bar__response {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--status-positive);
+  animation: copilot-response-lifecycle 6s ease forwards;
+}
+
+@keyframes copilot-response-lifecycle {
+  0% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  6% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Demo control bar (harness, not part of the cockpit UI) ──
+   Kept deliberately small and low-key — it's a background/dev control for
+   loadLevel, not a feature of the cockpit itself. */
+.demo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex-shrink: 0;
+  padding: 4px 16px;
+  background: #000000;
+  border-top: 1px solid #1c1c1c;
+  font-family: var(--font);
+}
+
+.demo-bar__caption {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #555555;
+}
+
+.demo-bar__segmented {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.demo-bar__segment {
+  padding: 3px 9px;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  background: #131313;
+  color: #767676;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.demo-bar__segment:hover {
+  color: #cccccc;
+  border-color: #3a3a3a;
+}
+
+.demo-bar__segment.active {
+  background: rgba(79, 143, 255, 0.35);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.demo-bar__segment--warning.active {
+  background: rgba(240, 185, 92, 0.35);
+}
+
+.demo-bar__readout {
+  font-size: 10px;
+  color: #5c5c5c;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .content-area {
+    flex-direction: column;
+  }
+
+  .left-column {
+    flex: 0 0 auto;
+    min-height: 320px;
+  }
+
+  /* The base 241px floor assumes the map is already in its compact
+     (suggestion-active) 40px state. In the stacked mobile layout the map
+     is normally NOT compact, so it needs its full 120px minimum — this
+     covers maneuver pill + a non-compact map + search field. */
+  .nav-card {
+    min-height: 312px;
+  }
+
+  .bottom-row {
+    flex-direction: column;
+    /* The base 215px floor assumes two cards side by side, each needing
+       215px of height. Once they stack, that same 215px would be split
+       between both cards vertically — nowhere near enough for either.
+       This floor covers two stacked cards' worth of height plus the gap
+       between them. */
+    min-height: calc(215px * 2 + var(--gap));
+  }
+
+  .nav-rail {
+    flex-direction: row;
+    width: 100%;
+    padding: 10px var(--gap);
+    overflow-x: auto;
+  }
+
+  .nav-item {
+    min-width: var(--touch-min);
+  }
+
+  .cockpit {
+    flex-direction: column;
+  }
+
+  .main-panel {
+    padding: 0 var(--gap) var(--gap);
+  }
+}
+
+@media (max-height: 600px) {
+  .speed-value {
+    font-size: 72px;
+  }
+
+  .speed-hero-panel__content {
+    padding: 16px 20px 20px;
+  }
+
+  .map-placeholder {
+    min-height: 80px;
+  }
+}
