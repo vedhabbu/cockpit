@@ -5,6 +5,22 @@ import speedHeroBg from './assets/SpeedHeroCard.png'
 import thumbnail from './assets/Thumbnail.png'
 import './App.css'
 
+// MapLibre GL v6 computes its worker's URL relative to wherever the main
+// maplibre-gl.mjs module ends up after bundling (via import.meta.url) — but
+// Vite/Rollup bundles that module into a hashed chunk and has no reason to
+// know it also needs to emit maplibre-gl-worker.mjs (and the
+// maplibre-gl-shared.mjs it imports) alongside it. In production that
+// computed URL points at a file that was never emitted, so the worker's
+// module fetch just hangs ("pending") and the map never renders. Dev mode
+// doesn't have this problem (Vite serves node_modules directly, so
+// MapLibre's default computation already resolves correctly) — only
+// override it for the production build, where vite.config.js's
+// copy-maplibre-worker plugin puts both files at this stable, unbundled
+// location in the build output.
+if (import.meta.env.PROD) {
+  maplibregl.setWorkerUrl(`${import.meta.env.BASE_URL}maplibre-gl-worker.mjs`)
+}
+
 const MAP_STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 const VEHICLE_POSITION = [73.79, 18.5089] // Bavdhan, Pune — fixed vehicle position
 const CHARGER_POSITION = [73.738, 18.591] // Hinjewadi, Pune — nearest charging station (EV only)

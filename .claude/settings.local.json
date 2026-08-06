@@ -9,7 +9,9 @@
       "Bash(lsof -i :5173 -sTCP:LISTEN)",
       "Bash(npm install *)",
       "Bash(kill 79719)",
-      "Bash(grep -n \"<NavCard\\\\|</div>\\\\s*$\\\\|<DemoControlBar\" /Users/vedhabbu/Desktop/cockpit/src/App.jsx)"
+      "Bash(grep -n \"<NavCard\\\\|</div>\\\\s*$\\\\|<DemoControlBar\" /Users/vedhabbu/Desktop/cockpit/src/App.jsx)",
+      "Bash(npm -v)",
+      "Bash(npm run *)"
     ]
   }
 }
