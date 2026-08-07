@@ -62,6 +62,36 @@ const LOAD_LEVELS = [
 const SPEED_BY_LOAD = { idle: 0, cruising: 64, congested: 18 }
 const GEAR_BY_LOAD = { idle: 'P', cruising: 'D', congested: 'D' }
 
+// Proactive suggestions read the driver's actual advice, not just its
+// wording, off loadLevel: idle has time/attention to spare, so the copilot
+// frames things around planning ahead; cruising is a light, low-pressure
+// heads-up; congested is the highest-cognitive-load context, so the copy is
+// briefest and — where the action allows it — offers to just handle it
+// rather than asking the driver to weigh options.
+const LOW_BATTERY_MESSAGES = {
+  idle: "Battery's low. Good moment to charge — shall I set a route to Hinjewadi, 11 km?",
+  cruising: 'Battery low. Charger 11 km ahead in Hinjewadi. Want me to route?',
+  congested: "Battery low and traffic's draining it fast. I can route to a charger 11 km ahead — go?",
+}
+
+const RANGE_MESSAGES = {
+  idle: "This trip's beyond your range. Want me to plan a charging stop before you head out?",
+  cruising: "You'll fall short before arriving. Add a charging stop en route?",
+  congested: "Traffic's eating your range — you won't make it. I'll add the nearest charger, ok?",
+}
+
+const COLD_WEATHER_MESSAGES = {
+  idle: "It's 4°C. Want me to pre-warm the cabin so it's ready when you leave?",
+  cruising: 'Bit cold out. Want the cabin warmer?',
+  congested: "Cold and stuck in traffic — I can warm the cabin to keep you comfortable. Go ahead?",
+}
+
+const MEETING_MESSAGES = {
+  idle: '6 PM meeting across town. Leave by 5:35 — want the route ready to go?',
+  cruising: "6 PM meeting, you're on pace. Set the route?",
+  congested: "6 PM meeting and traffic's heavy. Leave now to make it — I'll navigate, ok?",
+}
+
 const KNOWN_CITIES = {
   'new york': [-74.006, 40.7128],
   london: [-0.1276, 51.5072],
@@ -1177,10 +1207,9 @@ function App() {
   useEffect(() => {
     if (batteryLevel >= 20) return
     if (route?.label === 'Charging Station') return
-    const distanceKm = haversineKm(VEHICLE_POSITION, CHARGER_POSITION)
     setProactiveSuggestion({
       id: Date.now(),
-      message: `⚡ Battery low (${batteryLevel}%). Nearest charging station is in Hinjewadi, ${distanceKm.toFixed(1)} km away. Reroute?`,
+      message: LOW_BATTERY_MESSAGES[loadLevel],
       primaryLabel: 'Reroute',
       action: () => {
         showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
@@ -1203,7 +1232,7 @@ function App() {
     if (route.distanceKm <= RANGE_KM) return
     setProactiveSuggestion({
       id: Date.now(),
-      message: `⚡ Your destination is ${Math.round(route.distanceKm)} km away, but you have ${RANGE_KM} km of range. Add a charging stop along the way?`,
+      message: RANGE_MESSAGES[loadLevel],
       primaryLabel: 'Add Charging Stop',
       action: () => {
         showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
@@ -1217,14 +1246,14 @@ function App() {
     })
   }, [route])
 
-  // Cold weather while parked/idle: offer to pre-warm the cabin — skipped
-  // once both zones are already at or above the target temperature.
+  // Cold weather: offer to pre-warm the cabin — skipped once both zones are
+  // already at or above the target temperature.
   useEffect(() => {
     if (outsideTemp >= 10) return
     if (driverTemp >= 22 && passengerTemp >= 22) return
     setProactiveSuggestion({
       id: Date.now(),
-      message: `❄️ It's ${outsideTemp}°C outside. Warm up the cabin to 22°C before you drive?`,
+      message: COLD_WEATHER_MESSAGES[loadLevel],
       primaryLabel: 'Warm Up',
       action: () => {
         setDriverTemp(22)
@@ -1280,7 +1309,7 @@ function App() {
   const handleSimMeeting = () => {
     setProactiveSuggestion({
       id: Date.now(),
-      message: '📅 You have a meeting across town at 6:00 PM. Leave by 5:35 PM to arrive on time. Navigate there now?',
+      message: MEETING_MESSAGES[loadLevel],
       primaryLabel: 'Navigate',
       action: () => {
         showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
