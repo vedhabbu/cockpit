@@ -1476,6 +1476,27 @@ body {
   color: #555555;
 }
 
+.demo-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.demo-bar__group-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: #666666;
+}
+
+.demo-bar__divider {
+  width: 1px;
+  height: 14px;
+  flex-shrink: 0;
+  background: #262626;
+}
+
 .demo-bar__segmented {
   display: flex;
   gap: 3px;

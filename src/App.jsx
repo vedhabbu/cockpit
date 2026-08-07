@@ -907,41 +907,54 @@ function DemoControlBar({
   return (
     <div className="demo-bar">
       <span className="demo-bar__caption">Demo Controls</span>
-      <div className="demo-bar__segmented" role="group" aria-label="Load level">
-        {LOAD_LEVELS.map((level) => (
-          <button
-            key={level.id}
-            type="button"
-            className={`demo-bar__segment${loadLevel === level.id ? ' active' : ''}`}
-            aria-pressed={loadLevel === level.id}
-            onClick={() => onChange(level.id)}
-          >
-            {level.label}
-          </button>
-        ))}
+
+      <div className="demo-bar__group">
+        <span className="demo-bar__group-label">Context:</span>
+        <div className="demo-bar__segmented" role="group" aria-label="Driving context">
+          {LOAD_LEVELS.map((level) => (
+            <button
+              key={level.id}
+              type="button"
+              className={`demo-bar__segment${loadLevel === level.id ? ' active' : ''}`}
+              aria-pressed={loadLevel === level.id}
+              onClick={() => onChange(level.id)}
+            >
+              {level.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <button
-        type="button"
-        className={`demo-bar__segment${isLowBattery ? ' active demo-bar__segment--warning' : ''}`}
-        aria-pressed={isLowBattery}
-        onClick={onToggleBattery}
-      >
-        {isLowBattery ? 'Reset Battery' : 'Simulate Low Battery'}
-      </button>
-      <button type="button" className="demo-bar__segment" onClick={onSimLongTrip}>
-        Sim: Long Trip
-      </button>
-      <button
-        type="button"
-        className={`demo-bar__segment${isCold ? ' active demo-bar__segment--warning' : ''}`}
-        aria-pressed={isCold}
-        onClick={onToggleWeather}
-      >
-        {isCold ? 'Reset Weather' : 'Sim: Cold Weather'}
-      </button>
-      <button type="button" className="demo-bar__segment" onClick={onSimMeeting}>
-        Sim: Meeting
-      </button>
+
+      <span className="demo-bar__divider" aria-hidden="true" />
+
+      <div className="demo-bar__group">
+        <span className="demo-bar__group-label">Simulation:</span>
+        <div className="demo-bar__segmented" role="group" aria-label="Simulation triggers">
+          <button
+            type="button"
+            className={`demo-bar__segment${isLowBattery ? ' active demo-bar__segment--warning' : ''}`}
+            aria-pressed={isLowBattery}
+            onClick={onToggleBattery}
+          >
+            {isLowBattery ? 'Reset Battery' : 'Low Battery'}
+          </button>
+          <button type="button" className="demo-bar__segment" onClick={onSimLongTrip}>
+            Long Trip
+          </button>
+          <button
+            type="button"
+            className={`demo-bar__segment${isCold ? ' active demo-bar__segment--warning' : ''}`}
+            aria-pressed={isCold}
+            onClick={onToggleWeather}
+          >
+            {isCold ? 'Reset Weather' : 'Weather'}
+          </button>
+          <button type="button" className="demo-bar__segment" onClick={onSimMeeting}>
+            Meeting
+          </button>
+        </div>
+      </div>
+
       <span className="demo-bar__readout">
         Driving state: {activeLabel} · Battery: {batteryLevel}% · Outside: {outsideTemp}°C
       </span>
