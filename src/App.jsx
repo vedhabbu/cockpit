@@ -59,6 +59,15 @@ const LOAD_LEVELS = [
   { id: 'congested', label: 'Congested' },
 ]
 
+// Demo bar simulation triggers — mutually exclusive, so only one of these
+// four can ever be the active simulation at a time.
+const SIMULATIONS = [
+  { id: 'lowBattery', label: 'Low Battery', activeLabel: 'Reset Battery', warning: true },
+  { id: 'longTrip', label: 'Long Trip', activeLabel: 'Reset Trip', warning: false },
+  { id: 'weather', label: 'Weather', activeLabel: 'Reset Weather', warning: true },
+  { id: 'meeting', label: 'Meeting', activeLabel: 'Reset Meeting', warning: false },
+]
+
 const SPEED_BY_LOAD = { idle: 0, cruising: 64, congested: 18 }
 const GEAR_BY_LOAD = { idle: 'P', cruising: 'D', congested: 'D' }
 
@@ -924,15 +933,11 @@ function DemoControlBar({
   loadLevel,
   onChange,
   batteryLevel,
-  onToggleBattery,
   outsideTemp,
-  onToggleWeather,
-  onSimLongTrip,
-  onSimMeeting,
+  activeSimulation,
+  onToggleSimulation,
 }) {
   const activeLabel = LOAD_LEVELS.find((level) => level.id === loadLevel)?.label ?? loadLevel
-  const isLowBattery = batteryLevel < 20
-  const isCold = outsideTemp < 10
 
   return (
     <div className="demo-bar">
@@ -959,29 +964,24 @@ function DemoControlBar({
 
       <div className="demo-bar__group">
         <span className="demo-bar__group-label">Simulation:</span>
+        {/* Mutually exclusive: exactly one (or none) of these four can be
+            active at a time — selecting one deactivates whatever was
+            active before it, both visually and in the underlying state. */}
         <div className="demo-bar__segmented" role="group" aria-label="Simulation triggers">
-          <button
-            type="button"
-            className={`demo-bar__segment${isLowBattery ? ' active demo-bar__segment--warning' : ''}`}
-            aria-pressed={isLowBattery}
-            onClick={onToggleBattery}
-          >
-            {isLowBattery ? 'Reset Battery' : 'Low Battery'}
-          </button>
-          <button type="button" className="demo-bar__segment" onClick={onSimLongTrip}>
-            Long Trip
-          </button>
-          <button
-            type="button"
-            className={`demo-bar__segment${isCold ? ' active demo-bar__segment--warning' : ''}`}
-            aria-pressed={isCold}
-            onClick={onToggleWeather}
-          >
-            {isCold ? 'Reset Weather' : 'Weather'}
-          </button>
-          <button type="button" className="demo-bar__segment" onClick={onSimMeeting}>
-            Meeting
-          </button>
+          {SIMULATIONS.map((sim) => {
+            const isActive = activeSimulation === sim.id
+            return (
+              <button
+                key={sim.id}
+                type="button"
+                className={`demo-bar__segment${isActive ? ` active${sim.warning ? ' demo-bar__segment--warning' : ''}` : ''}`}
+                aria-pressed={isActive}
+                onClick={() => onToggleSimulation(sim.id)}
+              >
+                {isActive ? sim.activeLabel : sim.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -1188,6 +1188,11 @@ function App() {
   const [outsideTemp, setOutsideTemp] = useState(17)
   const [proactiveSuggestion, setProactiveSuggestion] = useState(null)
 
+  // Which demo-bar simulation (if any) is currently active — the single
+  // source of truth that keeps the four Simulation buttons mutually
+  // exclusive. 'lowBattery' | 'longTrip' | 'weather' | 'meeting' | null.
+  const [activeSimulation, setActiveSimulation] = useState(null)
+
   // The single source of truth for "where are we headed": null means idle
   // (no active route). The maneuver banner and trip meta are both derived
   // from it so they can never show conflicting info.
@@ -1323,6 +1328,37 @@ function App() {
     })
   }
 
+  // Reverses whichever simulation was active — restores its underlying
+  // state to normal and clears its suggestion — so switching to (or just
+  // turning off) another simulation never leaves stale state behind.
+  const deactivateSimulation = (sim) => {
+    if (sim === 'lowBattery') setBatteryLevel(78)
+    if (sim === 'weather') setOutsideTemp(17)
+    if (sim === 'longTrip') {
+      clearActiveRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
+      setRoute(null)
+    }
+    // 'meeting' has no persistent state of its own beyond the suggestion.
+    setProactiveSuggestion(null)
+  }
+
+  // The demo bar's four Simulation buttons are mutually exclusive: picking
+  // one deactivates whatever was active before it, then activates the new
+  // one; picking the already-active one just turns it off.
+  const handleToggleSimulation = (sim) => {
+    if (activeSimulation === sim) {
+      deactivateSimulation(sim)
+      setActiveSimulation(null)
+      return
+    }
+    if (activeSimulation) deactivateSimulation(activeSimulation)
+    if (sim === 'lowBattery') setBatteryLevel(18)
+    if (sim === 'weather') setOutsideTemp(4)
+    if (sim === 'longTrip') handleSimLongTrip()
+    if (sim === 'meeting') handleSimMeeting()
+    setActiveSimulation(sim)
+  }
+
   return (
     <div className="app-shell">
       <div className="cockpit">
@@ -1375,11 +1411,9 @@ function App() {
         loadLevel={loadLevel}
         onChange={setLoadLevel}
         batteryLevel={batteryLevel}
-        onToggleBattery={() => setBatteryLevel((b) => (b < 20 ? 78 : 18))}
         outsideTemp={outsideTemp}
-        onToggleWeather={() => setOutsideTemp((t) => (t < 10 ? 17 : 4))}
-        onSimLongTrip={handleSimLongTrip}
-        onSimMeeting={handleSimMeeting}
+        activeSimulation={activeSimulation}
+        onToggleSimulation={handleToggleSimulation}
       />
     </div>
   )
