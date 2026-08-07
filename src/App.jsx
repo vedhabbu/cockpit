@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import speedHeroBg from './assets/SpeedHeroCard.png'
+import speedHeroBg from './assets/car-hero-2.png'
 import thumbnail from './assets/Thumbnail.png'
 import './App.css'
 

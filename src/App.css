@@ -344,8 +344,18 @@ body {
   border-radius: var(--card-radius);
   overflow: hidden;
   min-height: 0;
+  /* Solid near-black base so the top/bottom bands the image's mask fades
+     out to read as clean darkness, not the cockpit's ambient glow behind
+     this panel. */
+  background: var(--bg);
 }
 
+/* Full-bleed background (same treatment as before), with a top-and-bottom
+   mask gradient standing in for a scrim: fully transparent at both edges
+   (revealing the panel's solid near-black background beneath, so the gear
+   selector/speed readout up top and the battery row/status cards down
+   below both sit on solid darkness) ramping up to fully opaque through the
+   middle band, where the car and glowing road stay completely visible. */
 .speed-hero-panel__bg {
   position: absolute;
   inset: 0;
@@ -353,6 +363,13 @@ body {
   height: 100%;
   object-fit: cover;
   object-position: center;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 42%,
+    black 60%,
+    transparent 78%
+  );
   pointer-events: none;
 }
 
