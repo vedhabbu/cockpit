@@ -26,6 +26,12 @@ const VEHICLE_POSITION = [73.79, 18.5089] // Bavdhan, Pune — fixed vehicle pos
 const CHARGER_POSITION = [73.738, 18.591] // Hinjewadi, Pune — nearest charging station (EV only)
 const RANGE_KM = 312 // matches the static range shown in the speed hero panel
 const LONG_TRIP_DESTINATION = [73.79, 15.451] // ~340 km south of Bavdhan — demo "long trip" destination
+// Satara, Maharashtra — sits directly on the Pune-to-Goa corridor, ~100 km
+// south of Bavdhan. Used (not the Hinjewadi charger) when a route's
+// distance exceeds RANGE_KM, so the suggested charging stop actually falls
+// on the way to a far-south destination like the long-trip demo, instead
+// of detouring to a charger that's the wrong direction entirely.
+const RANGE_CHARGER_POSITION = [74.0183, 17.6805]
 const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo calendar destination
 const MAP_ZOOM = 13
 const MAP_PITCH = 45
@@ -179,14 +185,17 @@ function tripMetaFromRoute(route) {
   }
 }
 
-// Draws (or updates) an accent-gradient route line from the fixed vehicle
-// position to any fixed destination, then frames both with fitBounds.
-function drawRouteTo(map, destination) {
+// Draws (or updates) an accent-gradient route line through an ordered list
+// of waypoints (first one should be the vehicle's position), then frames
+// all of them with fitBounds. A plain vehicle -> destination hop is just a
+// 2-point line; a route with a charging stop passes the charger's
+// coordinates as a middle waypoint so the line visibly runs through it.
+function drawRouteTo(map, coordinates) {
   if (!map) return
 
   const routeGeoJSON = {
     type: 'Feature',
-    geometry: { type: 'LineString', coordinates: [VEHICLE_POSITION, destination] },
+    geometry: { type: 'LineString', coordinates },
   }
 
   const apply = () => {
@@ -208,8 +217,7 @@ function drawRouteTo(map, destination) {
     }
 
     const bounds = new maplibregl.LngLatBounds()
-    bounds.extend(VEHICLE_POSITION)
-    bounds.extend(destination)
+    coordinates.forEach((point) => bounds.extend(point))
     const { clientHeight, clientWidth } = map.getContainer()
     const verticalPadding = Math.max(16, Math.min(40, clientHeight / 4))
     const horizontalPadding = Math.max(24, Math.min(70, clientWidth / 6))
@@ -247,7 +255,7 @@ function showChargerRoute(map, chargerMarkerRef, destinationMarkerRef) {
       .setLngLat(CHARGER_POSITION)
       .addTo(map)
   }
-  drawRouteTo(map, CHARGER_POSITION)
+  drawRouteTo(map, [VEHICLE_POSITION, CHARGER_POSITION])
 }
 
 // A generic geocoded destination — same pattern as the charger, but the
@@ -262,7 +270,31 @@ function showDestinationRoute(map, destinationMarkerRef, chargerMarkerRef, coord
       .setLngLat(coords)
       .addTo(map)
   }
-  drawRouteTo(map, coords)
+  drawRouteTo(map, [VEHICLE_POSITION, coords])
+}
+
+// Unlike showChargerRoute (which replaces the destination with the charger
+// as the new endpoint), this keeps BOTH markers up and draws the route
+// through the charger on the way to the original destination — vehicle ->
+// charger -> destination — so the charger visibly sits en route instead of
+// being a detour to a random direction.
+function showChargerStopEnRoute(map, chargerMarkerRef, destinationMarkerRef, chargerCoords, destinationCoords) {
+  if (!map) return
+  if (chargerMarkerRef.current) {
+    chargerMarkerRef.current.setLngLat(chargerCoords)
+  } else {
+    chargerMarkerRef.current = new maplibregl.Marker({ element: createChargerMarkerEl() })
+      .setLngLat(chargerCoords)
+      .addTo(map)
+  }
+  if (destinationMarkerRef.current) {
+    destinationMarkerRef.current.setLngLat(destinationCoords)
+  } else {
+    destinationMarkerRef.current = new maplibregl.Marker({ element: createDestinationMarkerEl() })
+      .setLngLat(destinationCoords)
+      .addTo(map)
+  }
+  drawRouteTo(map, [VEHICLE_POSITION, chargerCoords, destinationCoords])
 }
 
 // Removes any active marker/route and flies back to the vehicle's fixed
@@ -1243,12 +1275,15 @@ function App() {
       kind: 'range',
       primaryLabel: 'Add Charging Stop',
       action: () => {
-        showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
-        const chargerRoute = buildRoute('Charging Station', 'Hinjewadi, Pune', CHARGER_POSITION)
+        // Satara sits on the way south (e.g. toward the Goa long trip),
+        // unlike the Hinjewadi charger — keep the original destination's
+        // marker up too and route through the stop, not straight to it.
+        showChargerStopEnRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef, RANGE_CHARGER_POSITION, route.destination)
+        const chargerRoute = buildRoute('Charging Stop', 'Satara, Maharashtra', RANGE_CHARGER_POSITION)
         setRoute(chargerRoute)
         setCopilotResponse({
           id: Date.now(),
-          text: `Added a charging stop in Hinjewadi — ${chargerRoute.distanceKm.toFixed(1)} km away.`,
+          text: `Charging stop added — Satara, ${chargerRoute.distanceKm.toFixed(1)} km, on the way to your destination.`,
         })
       },
     })
