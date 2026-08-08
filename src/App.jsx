@@ -838,7 +838,8 @@ function MediaCard({ isPlaying, onTogglePlay, trackIndex, onNext, onPrev, compac
       <div className="media-controls">
         <button type="button" className="control-btn" aria-label="Previous track" onClick={onPrev}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+            <path d="M5 6H7V18H5Z" />
+            <path d="M19 6L9 12L19 18Z" />
           </svg>
         </button>
         <button
@@ -859,7 +860,8 @@ function MediaCard({ isPlaying, onTogglePlay, trackIndex, onNext, onPrev, compac
         </button>
         <button type="button" className="control-btn" aria-label="Next track" onClick={onNext}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6 18l8.5-6L6 6v12zm2-12v12h2V6H8zm10 0h2v12h-2V6z" />
+            <path d="M5 6L15 12L5 18Z" />
+            <path d="M17 6H19V18H17Z" />
           </svg>
         </button>
       </div>
