@@ -101,6 +101,16 @@ const MEETING_MESSAGES = {
   congested: "6 PM meeting and traffic's heavy. Leave now to make it — I'll navigate, ok?",
 }
 
+// Keyed by suggestion.kind so the active suggestion's displayed text can be
+// re-derived from the CURRENT loadLevel at render time, instead of being
+// frozen at whatever loadLevel was active the moment it fired.
+const SUGGESTION_MESSAGES_BY_KIND = {
+  lowBattery: LOW_BATTERY_MESSAGES,
+  range: RANGE_MESSAGES,
+  coldWeather: COLD_WEATHER_MESSAGES,
+  meeting: MEETING_MESSAGES,
+}
+
 const KNOWN_CITIES = {
   'new york': [-74.006, 40.7128],
   london: [-0.1276, 51.5072],
@@ -1172,7 +1182,14 @@ function App() {
   const [copilotResponse, setCopilotResponse] = useState(null)
   const [batteryLevel, setBatteryLevel] = useState(78)
   const [outsideTemp, setOutsideTemp] = useState(17)
+  // Holds { id, kind, primaryLabel, action } — no fixed message text, so
+  // the displayed suggestion (derived below) always reflects the CURRENT
+  // loadLevel, not whatever it was the moment the suggestion fired.
   const [proactiveSuggestion, setProactiveSuggestion] = useState(null)
+  const activeSuggestion = proactiveSuggestion && {
+    ...proactiveSuggestion,
+    message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel],
+  }
 
   // Which demo-bar simulation (if any) is currently active — the single
   // source of truth that keeps the four Simulation buttons mutually
@@ -1200,7 +1217,7 @@ function App() {
     if (route?.label === 'Charging Station') return
     setProactiveSuggestion({
       id: Date.now(),
-      message: LOW_BATTERY_MESSAGES[loadLevel],
+      kind: 'lowBattery',
       primaryLabel: 'Reroute',
       action: () => {
         showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
@@ -1223,7 +1240,7 @@ function App() {
     if (route.distanceKm <= RANGE_KM) return
     setProactiveSuggestion({
       id: Date.now(),
-      message: RANGE_MESSAGES[loadLevel],
+      kind: 'range',
       primaryLabel: 'Add Charging Stop',
       action: () => {
         showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
@@ -1244,7 +1261,7 @@ function App() {
     if (driverTemp >= 22 && passengerTemp >= 22) return
     setProactiveSuggestion({
       id: Date.now(),
-      message: COLD_WEATHER_MESSAGES[loadLevel],
+      kind: 'coldWeather',
       primaryLabel: 'Warm Up',
       action: () => {
         setDriverTemp(22)
@@ -1300,7 +1317,7 @@ function App() {
   const handleSimMeeting = () => {
     setProactiveSuggestion({
       id: Date.now(),
-      message: MEETING_MESSAGES[loadLevel],
+      kind: 'meeting',
       primaryLabel: 'Navigate',
       action: () => {
         showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
@@ -1394,7 +1411,7 @@ function App() {
             </div>
           </div>
           <ProactiveSuggestionCard
-            suggestion={proactiveSuggestion}
+            suggestion={activeSuggestion}
             onPrimary={handleSuggestionPrimary}
             onDismiss={handleDismissSuggestion}
           />
