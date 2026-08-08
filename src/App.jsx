@@ -660,7 +660,7 @@ function NavMap({ mapRef, compact }) {
   )
 }
 
-function NavCard({ mapRef, maneuver, tripMeta, compact }) {
+function NavCard({ mapRef, chargerMarkerRef, destinationMarkerRef, setRoute, maneuver, tripMeta, compact }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchStatus, setSearchStatus] = useState('idle') // idle | loading | not-found | error
 
@@ -670,27 +670,11 @@ function NavCard({ mapRef, maneuver, tripMeta, compact }) {
     if (!query || searchStatus === 'loading' || !mapRef.current) return
 
     setSearchStatus('loading')
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
-      )
-      const results = await res.json()
-      if (!results.length) {
-        setSearchStatus('not-found')
-        return
-      }
-      const { lat, lon } = results[0]
-      mapRef.current.flyTo({
-        center: [parseFloat(lon), parseFloat(lat)],
-        zoom: 13,
-        speed: 1.2,
-        curve: 1.4,
-        essential: true,
-      })
-      setSearchStatus('idle')
-    } catch {
-      setSearchStatus('error')
-    }
+    // Same geocodeAndRoute the copilot's "take me to X" uses, so a manually
+    // searched destination gets the exact same marker + route line +
+    // fitBounds + maneuver banner + trip meta as any other route.
+    const result = await geocodeAndRoute(query, { mapRef, chargerMarkerRef, destinationMarkerRef, setRoute })
+    setSearchStatus(result === "I couldn't find that destination." ? 'not-found' : 'idle')
   }
 
   const handleSearchChange = (event) => {
@@ -1372,7 +1356,15 @@ function App() {
               <SpeedHeroPanel gear={gear} onGearChange={setGear} loadLevel={loadLevel} batteryLevel={batteryLevel} />
             </div>
             <div className="right-column">
-              <NavCard mapRef={mapRef} maneuver={maneuver} tripMeta={tripMeta} compact={!!proactiveSuggestion} />
+              <NavCard
+                mapRef={mapRef}
+                chargerMarkerRef={chargerMarkerRef}
+                destinationMarkerRef={destinationMarkerRef}
+                setRoute={setRoute}
+                maneuver={maneuver}
+                tripMeta={tripMeta}
+                compact={!!proactiveSuggestion}
+              />
               <div className="bottom-row">
                 <MediaCard
                   isPlaying={isPlaying}
