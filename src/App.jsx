@@ -86,7 +86,7 @@ const LOW_BATTERY_MESSAGES = {
 const RANGE_MESSAGES = {
   idle: "This trip's beyond your range. Want me to plan a charging stop before you head out?",
   cruising: "You'll fall short before arriving. Add a charging stop en route?",
-  congested: "Traffic's eating your range — you won't make it. I'll add the nearest charger, ok?",
+  congested: "Traffic's cutting your range short of the destination. Reroute via a charger?",
 }
 
 const COLD_WEATHER_MESSAGES = {
@@ -98,7 +98,7 @@ const COLD_WEATHER_MESSAGES = {
 const MEETING_MESSAGES = {
   idle: '6 PM meeting across town. Leave by 5:35 — want the route ready to go?',
   cruising: "6 PM meeting, you're on pace. Set the route?",
-  congested: "6 PM meeting and traffic's heavy. Leave now to make it — I'll navigate, ok?",
+  congested: "6 PM meeting's at risk with this traffic. Take the faster route?",
 }
 
 // Keyed by suggestion.kind so the active suggestion's displayed text can be
