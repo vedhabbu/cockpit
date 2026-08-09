@@ -964,6 +964,8 @@ function DemoControlBar({
   outsideTemp,
   activeSimulation,
   onToggleSimulation,
+  voiceMuted,
+  onToggleVoiceMuted,
 }) {
   const activeLabel = LOAD_LEVELS.find((level) => level.id === loadLevel)?.label ?? loadLevel
 
@@ -1013,6 +1015,23 @@ function DemoControlBar({
         </div>
       </div>
 
+      {speechSynthesisSupported && (
+        <>
+          <span className="demo-bar__divider" aria-hidden="true" />
+          <div className="demo-bar__group">
+            <span className="demo-bar__group-label">Voice:</span>
+            <button
+              type="button"
+              className={`demo-bar__segment${!voiceMuted ? ' active' : ''}`}
+              aria-pressed={!voiceMuted}
+              onClick={onToggleVoiceMuted}
+            >
+              {voiceMuted ? 'Muted' : 'On'}
+            </button>
+          </div>
+        </>
+      )}
+
       <span className="demo-bar__readout">
         Driving state: {activeLabel} · Battery: {batteryLevel}% · Outside: {outsideTemp}°C
       </span>
@@ -1022,6 +1041,27 @@ function DemoControlBar({
 
 const SpeechRecognitionCtor =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
+
+const speechSynthesisSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+
+// Speaks copilot suggestion text aloud (free, no API key — window.speechSynthesis).
+// Cancels any speech already in progress first so suggestions never overlap.
+// Entirely best-effort: unsupported browsers, blocked autoplay, or any
+// runtime error here should never break the UI, so failures are swallowed.
+function speakSuggestionText(text) {
+  if (!speechSynthesisSupported || !text) return
+  try {
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.97
+    utterance.pitch = 1
+    const englishVoice = window.speechSynthesis.getVoices().find((voice) => /^en/i.test(voice.lang))
+    if (englishVoice) utterance.voice = englishVoice
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Voice output is a nice-to-have, never let it break the cockpit.
+  }
+}
 
 function CopilotBar({ onSubmit, response }) {
   const [query, setQuery] = useState('')
@@ -1157,7 +1197,7 @@ function CopilotBar({ onSubmit, response }) {
 // A card the copilot shows on its own initiative (not in response to a
 // command) — visually distinct from CopilotBar's reactive responses via the
 // amber "Copilot suggestion" eyebrow and its own action buttons.
-function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss }) {
+function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss, onSpeak }) {
   if (!suggestion) return null
 
   return (
@@ -1168,6 +1208,33 @@ function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss }) {
             <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z" />
           </svg>
           Copilot Suggestion
+          {speechSynthesisSupported && (
+            <button
+              type="button"
+              className="proactive-suggestion__speak"
+              onClick={onSpeak}
+              aria-label="Read suggestion aloud"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M4 9v6h4l5 5V4L8 9H4z" />
+                <path
+                  d="M16.5 8.5a5 5 0 010 7"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M19 6a9 9 0 010 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  opacity="0.6"
+                />
+              </svg>
+            </button>
+          )}
         </span>
         <p className="proactive-suggestion__message">{suggestion.message}</p>
       </div>
@@ -1221,6 +1288,29 @@ function App() {
   const activeSuggestion = proactiveSuggestion && {
     ...proactiveSuggestion,
     message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel],
+  }
+  const [voiceMuted, setVoiceMuted] = useState(false)
+
+  // Chrome populates the voices list asynchronously — warm it on mount so
+  // an English voice is actually available by the time the first
+  // suggestion fires and tries to pick one.
+  useEffect(() => {
+    if (!speechSynthesisSupported) return
+    window.speechSynthesis.getVoices()
+  }, [])
+
+  // Speaks a proactive suggestion aloud exactly once, the moment it fires —
+  // keyed off suggestion id, not the live-updating message, so switching
+  // Context afterward updates the on-screen wording (see activeSuggestion
+  // above) without re-triggering speech and spamming the driver.
+  useEffect(() => {
+    if (!proactiveSuggestion || voiceMuted) return
+    speakSuggestionText(SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel])
+  }, [proactiveSuggestion?.id])
+
+  const handleSpeakActiveSuggestion = () => {
+    if (!activeSuggestion || voiceMuted) return
+    speakSuggestionText(activeSuggestion.message)
   }
 
   // Which demo-bar simulation (if any) is currently active — the single
@@ -1449,6 +1539,7 @@ function App() {
             suggestion={activeSuggestion}
             onPrimary={handleSuggestionPrimary}
             onDismiss={handleDismissSuggestion}
+            onSpeak={handleSpeakActiveSuggestion}
           />
           <CopilotBar onSubmit={handleCopilotSubmit} response={copilotResponse} />
         </div>
@@ -1460,6 +1551,8 @@ function App() {
         outsideTemp={outsideTemp}
         activeSimulation={activeSimulation}
         onToggleSimulation={handleToggleSimulation}
+        voiceMuted={voiceMuted}
+        onToggleVoiceMuted={() => setVoiceMuted((m) => !m)}
       />
     </div>
   )

@@ -1278,6 +1278,27 @@ body {
   height: 12px;
 }
 
+.proactive-suggestion__speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(240, 185, 92, 0.14);
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.proactive-suggestion__speak:hover {
+  background: rgba(240, 185, 92, 0.28);
+  color: var(--text-primary);
+}
+
 .proactive-suggestion__message {
   margin: 0;
   font-size: 14px;
