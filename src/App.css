@@ -285,6 +285,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  transition: gap 0.45s ease;
+}
+
+/* Navigation focus mode: media/climate (.bottom-row) collapse away below,
+   and nav-card — the only remaining flex child with any flex-grow — fills
+   the freed space on its own without needing its own flex value touched. */
+.right-column--focus {
+  gap: 0;
 }
 
 .bottom-row {
@@ -297,6 +305,16 @@ body {
      bug: this used to be min-height: 0, so bottom-row would shrink below
      usable size and the media controls became unclickable. */
   min-height: 215px;
+  overflow: hidden;
+  opacity: 1;
+  transition: flex-grow 0.45s ease, min-height 0.45s ease, opacity 0.3s ease;
+}
+
+.right-column--focus .bottom-row {
+  flex-grow: 0;
+  min-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .bottom-row .card {
@@ -617,6 +635,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.maneuver-pill__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .maneuver-pill__distance {
   flex-shrink: 0;
   display: flex;
@@ -636,6 +661,34 @@ body {
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--text-muted);
+}
+
+/* Exits navigation focus mode (clears the active route) — only rendered
+   while a route is active, so it sits right next to the distance badge. */
+.nav-card__exit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-card__exit svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nav-card__exit:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
 }
 
 .map-placeholder {

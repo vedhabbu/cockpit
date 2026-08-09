@@ -653,7 +653,7 @@ function createDestinationMarkerEl() {
   return el
 }
 
-function NavMap({ mapRef, compact }) {
+function NavMap({ mapRef, compact, navFocus }) {
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -682,16 +682,18 @@ function NavMap({ mapRef, compact }) {
     }
   }, [mapRef])
 
-  // The map area shrinks while the proactive suggestion is showing (to make
-  // room without ever squeezing the media/nav controls) — resize the canvas
-  // to match, once immediately and once after the CSS transition settles.
+  // The map area shrinks while the proactive suggestion is showing, and
+  // grows to fill the right column in navigation focus mode (to make room
+  // without ever squeezing the media/nav controls, or to take over once
+  // they're hidden) — resize the canvas to match, once immediately and once
+  // after the CSS transition settles.
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     map.resize()
     const timeout = setTimeout(() => map.resize(), 320)
     return () => clearTimeout(timeout)
-  }, [compact])
+  }, [compact, navFocus])
 
   return (
     <div
@@ -702,7 +704,17 @@ function NavMap({ mapRef, compact }) {
   )
 }
 
-function NavCard({ mapRef, chargerMarkerRef, destinationMarkerRef, setRoute, maneuver, tripMeta, compact }) {
+function NavCard({
+  mapRef,
+  chargerMarkerRef,
+  destinationMarkerRef,
+  setRoute,
+  maneuver,
+  tripMeta,
+  compact,
+  navFocus,
+  onExitNavigation,
+}) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchStatus, setSearchStatus] = useState('idle') // idle | loading | not-found | error
 
@@ -738,14 +750,28 @@ function NavCard({ mapRef, chargerMarkerRef, destinationMarkerRef, setRoute, man
             <span className="maneuver-pill__subtitle">{maneuver.subtitle}</span>
           </span>
         </div>
-        {maneuver.distanceValue && (
-          <span className="maneuver-pill__distance">
-            <span className="maneuver-pill__distance-value">{maneuver.distanceValue}</span>
-            <span className="maneuver-pill__distance-unit">{maneuver.distanceUnit}</span>
-          </span>
-        )}
+        <div className="maneuver-pill__right">
+          {maneuver.distanceValue && (
+            <span className="maneuver-pill__distance">
+              <span className="maneuver-pill__distance-value">{maneuver.distanceValue}</span>
+              <span className="maneuver-pill__distance-unit">{maneuver.distanceUnit}</span>
+            </span>
+          )}
+          {navFocus && (
+            <button
+              type="button"
+              className="nav-card__exit"
+              onClick={onExitNavigation}
+              aria-label="Exit navigation"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
-      <NavMap mapRef={mapRef} compact={compact} />
+      <NavMap mapRef={mapRef} compact={compact} navFocus={navFocus} />
       {tripMeta && (
         <div className="nav-meta">
           <span className="nav-meta__item">
@@ -1325,6 +1351,25 @@ function App() {
   const maneuver = maneuverFromRoute(route)
   const tripMeta = tripMetaFromRoute(route)
 
+  // Navigation focus mode: any active route means the driver just accepted
+  // a nav action (accepted a suggestion, searched a destination, or ran a
+  // "take me to X" command) or is mid-simulation of one — the route itself
+  // is the single source of truth, so this can never drift out of sync with
+  // what's actually on the map. Exiting focus mode means clearing the route.
+  const navFocus = route !== null
+
+  const handleExitNavigation = () => {
+    clearActiveRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
+    setRoute(null)
+    // longTrip/meeting have no state of their own beyond the route/suggestion
+    // (unlike lowBattery, which stays "active" via batteryLevel even after
+    // its route is cleared) — leaving their demo-bar button highlighted
+    // here would be stale, since nothing about them is still running.
+    if (activeSimulation === 'longTrip' || activeSimulation === 'meeting') {
+      setActiveSimulation(null)
+    }
+  }
+
   useEffect(() => {
     if (!copilotResponse) return
     const timeout = setTimeout(() => setCopilotResponse(null), 6000)
@@ -1497,7 +1542,7 @@ function App() {
             <div className="left-column">
               <SpeedHeroPanel gear={gear} onGearChange={setGear} loadLevel={loadLevel} batteryLevel={batteryLevel} />
             </div>
-            <div className="right-column">
+            <div className={`right-column${navFocus ? ' right-column--focus' : ''}`}>
               <NavCard
                 mapRef={mapRef}
                 chargerMarkerRef={chargerMarkerRef}
@@ -1506,6 +1551,8 @@ function App() {
                 maneuver={maneuver}
                 tripMeta={tripMeta}
                 compact={!!proactiveSuggestion}
+                navFocus={navFocus}
+                onExitNavigation={handleExitNavigation}
               />
               <div className="bottom-row">
                 <MediaCard
