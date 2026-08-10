@@ -136,14 +136,14 @@ const SUGGESTION_MESSAGES_BY_KIND = {
 function resolveMeetingSuggestion(loadLevel, hasRoute) {
   if (loadLevel === 'cruising' && hasRoute) {
     return {
-      message: "6 PM meeting, you're on pace. Traffic looks fine ahead.",
+      message: "6 PM meeting — you're on pace to Koregaon Park. Route looks clear.",
       primaryLabel: 'Keep Route',
       actionKind: 'keep',
     }
   }
   if (loadLevel === 'congested' && hasRoute) {
     return {
-      message: "Traffic's building on your route to the 6 PM meeting. Take a faster alternate route?",
+      message: "Traffic's building on your route to the 6 PM meeting. Take a faster route?",
       primaryLabel: 'Faster Route',
       actionKind: 'reroute',
     }
@@ -1484,6 +1484,18 @@ function App() {
     }
   }
 
+  // Draws the baseline Bavdhan -> Koregaon Park route and sets it active,
+  // with no copilot response of its own — used both when the driver
+  // accepts "Start Navigation" (idle) and to silently pre-seed the
+  // "already driving to the meeting" state that cruising/congested assume
+  // (see handleSimMeeting). Returns the route so callers can report on it.
+  const establishMeetingRoute = () => {
+    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
+    const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
+    setRoute(meetingRoute)
+    return meetingRoute
+  }
+
   // Meeting's actual behavior (not just its wording) depends on live state
   // — loadLevel and whether a route already exists — so unlike the other
   // suggestion kinds, it has no fixed action captured at creation time.
@@ -1491,14 +1503,18 @@ function App() {
   // says which of these to run.
   const runMeetingAction = (actionKind) => {
     if (actionKind === 'reroute') {
-      // Alternate path to the SAME destination — a route already exists,
-      // so this redraws the line rather than placing a new marker.
+      // Same origin/destination, different path — redraws the line through
+      // an offset waypoint so it's visibly a new route, not the old one
+      // redrawn, and shaves a few minutes off the ETA to reflect lighter
+      // traffic on the alternate (straight-line distance is unchanged,
+      // since the endpoints haven't moved).
       drawRouteTo(mapRef.current, [VEHICLE_POSITION, MEETING_ALT_WAYPOINT, MEETING_DESTINATION])
-      const fasterRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION)
+      const baseRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION)
+      const fasterRoute = { ...baseRoute, minutes: Math.max(1, baseRoute.minutes - 4) }
       setRoute(fasterRoute)
       setCopilotResponse({
         id: Date.now(),
-        text: `Rerouting — faster path to Koregaon Park, ${fasterRoute.distanceKm.toFixed(1)} km away.`,
+        text: `Rerouting — faster path to Koregaon Park, now ${fasterRoute.minutes} min.`,
       })
       return
     }
@@ -1509,9 +1525,7 @@ function App() {
     }
     // 'start' — the calendar knows the destination, but nothing is on the
     // map yet, so this sets the initial route.
-    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
-    const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
-    setRoute(meetingRoute)
+    const meetingRoute = establishMeetingRoute()
     setCopilotResponse({
       id: Date.now(),
       text: `Navigating to Koregaon Park — ${meetingRoute.distanceKm.toFixed(1)} km away.`,
@@ -1537,7 +1551,15 @@ function App() {
 
   // No fixed primaryLabel/action here (unlike the other simulations) —
   // both are derived live from loadLevel + route via resolveMeetingSuggestion.
+  // Cruising/congested mean the driver is already underway, so — unlike
+  // idle, which stays route-less until "Start Navigation" is accepted —
+  // this silently pre-seeds the Bavdhan -> Koregaon Park route first, so
+  // the suggestion's "your route"/"faster route" framing is never talking
+  // about a route that doesn't actually exist yet.
   const handleSimMeeting = () => {
+    if (loadLevel === 'cruising' || loadLevel === 'congested') {
+      establishMeetingRoute()
+    }
     setProactiveSuggestion({ id: Date.now(), kind: 'meeting' })
   }
 
@@ -1547,11 +1569,14 @@ function App() {
   const deactivateSimulation = (sim) => {
     if (sim === 'lowBattery') setBatteryLevel(78)
     if (sim === 'weather') setOutsideTemp(17)
-    if (sim === 'longTrip') {
+    // longTrip always has a route; meeting only does when triggered while
+    // cruising/congested (see handleSimMeeting) — clearing unconditionally
+    // is harmless either way, since setRoute(null)/clearActiveRoute on an
+    // already-idle map is a no-op.
+    if (sim === 'longTrip' || sim === 'meeting') {
       clearActiveRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
       setRoute(null)
     }
-    // 'meeting' has no persistent state of its own beyond the suggestion.
     setProactiveSuggestion(null)
   }
 
