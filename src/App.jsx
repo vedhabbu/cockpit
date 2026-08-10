@@ -33,6 +33,11 @@ const LONG_TRIP_DESTINATION = [73.79, 15.451] // ~340 km south of Bavdhan — de
 // of detouring to a charger that's the wrong direction entirely.
 const RANGE_CHARGER_POSITION = [74.0183, 17.6805]
 const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo calendar destination
+// A waypoint off to the side of the direct Bavdhan -> Koregaon Park line —
+// used only for the "faster alternate route" reroute, so that redraw is
+// visibly a different path to the same destination, not just the same line
+// redrawn.
+const MEETING_ALT_WAYPOINT = [73.858, 18.487]
 const MAP_ZOOM = 13
 const MAP_PITCH = 45
 const ACTIVE_ROUTE_SOURCE_ID = 'active-route'
@@ -110,20 +115,52 @@ const COLD_WEATHER_MESSAGES = {
   congested: "Cold and stuck in traffic — I can warm the cabin to keep you comfortable. Go ahead?",
 }
 
-const MEETING_MESSAGES = {
-  idle: '6 PM meeting across town. Leave by 5:35 — want the route ready to go?',
-  cruising: "6 PM meeting, you're on pace. Set the route?",
-  congested: "6 PM meeting's at risk with this traffic. Take the faster route?",
-}
-
 // Keyed by suggestion.kind so the active suggestion's displayed text can be
 // re-derived from the CURRENT loadLevel at render time, instead of being
-// frozen at whatever loadLevel was active the moment it fired.
+// frozen at whatever loadLevel was active the moment it fired. 'meeting' is
+// handled separately (see resolveMeetingSuggestion) since its wording also
+// depends on whether a route currently exists, not just loadLevel.
 const SUGGESTION_MESSAGES_BY_KIND = {
   lowBattery: LOW_BATTERY_MESSAGES,
   range: RANGE_MESSAGES,
   coldWeather: COLD_WEATHER_MESSAGES,
-  meeting: MEETING_MESSAGES,
+}
+
+// The car only knows about the meeting because it's a calendar event — it
+// has a destination and a time, but no route exists until the driver
+// accepts. So idle always frames this as "start navigation" (nothing is on
+// the map yet). Once driving, "keep the route" / "faster route" framing
+// only makes sense if a route already exists to modify — with no route,
+// cruising/congested fall back to the same "start navigation" framing as
+// idle, so the copilot never references a route that isn't actually there.
+function resolveMeetingSuggestion(loadLevel, hasRoute) {
+  if (loadLevel === 'cruising' && hasRoute) {
+    return {
+      message: "6 PM meeting, you're on pace. Traffic looks fine ahead.",
+      primaryLabel: 'Keep Route',
+      actionKind: 'keep',
+    }
+  }
+  if (loadLevel === 'congested' && hasRoute) {
+    return {
+      message: "Traffic's building on your route to the 6 PM meeting. Take a faster alternate route?",
+      primaryLabel: 'Faster Route',
+      actionKind: 'reroute',
+    }
+  }
+  return {
+    message: 'Calendar shows a 6 PM meeting across town. Leave by 5:35 to arrive on time. Start navigation?',
+    primaryLabel: 'Start Navigation',
+    actionKind: 'start',
+  }
+}
+
+// Suggestion message text, live-derived from the CURRENT loadLevel (and,
+// for 'meeting', whether a route currently exists) — used by both the
+// on-screen card and the speak-aloud effect so they can never disagree.
+function getSuggestionMessage(kind, loadLevel, hasRoute) {
+  if (kind === 'meeting') return resolveMeetingSuggestion(loadLevel, hasRoute).message
+  return SUGGESTION_MESSAGES_BY_KIND[kind][loadLevel]
 }
 
 const KNOWN_CITIES = {
@@ -1283,13 +1320,25 @@ function App() {
   const [copilotResponse, setCopilotResponse] = useState(null)
   const [batteryLevel, setBatteryLevel] = useState(78)
   const [outsideTemp, setOutsideTemp] = useState(17)
+  // The single source of truth for "where are we headed": null means idle
+  // (no active route). The maneuver banner and trip meta are both derived
+  // from it so they can never show conflicting info. Declared early because
+  // the meeting suggestion's wording/behavior (below) also depends on
+  // whether a route currently exists, not just on loadLevel.
+  const [route, setRoute] = useState(null)
+  const maneuver = maneuverFromRoute(route)
+  const tripMeta = tripMetaFromRoute(route)
+
   // Holds { id, kind, primaryLabel, action } — no fixed message text, so
   // the displayed suggestion (derived below) always reflects the CURRENT
-  // loadLevel, not whatever it was the moment the suggestion fired.
+  // loadLevel (and, for 'meeting', route), not whatever they were the
+  // moment the suggestion fired.
   const [proactiveSuggestion, setProactiveSuggestion] = useState(null)
   const activeSuggestion = proactiveSuggestion && {
     ...proactiveSuggestion,
-    message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel],
+    ...(proactiveSuggestion.kind === 'meeting'
+      ? resolveMeetingSuggestion(loadLevel, route !== null)
+      : { message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel] }),
   }
   const [voiceMuted, setVoiceMuted] = useState(false)
 
@@ -1307,20 +1356,13 @@ function App() {
   // above) without re-triggering speech and spamming the driver.
   useEffect(() => {
     if (!proactiveSuggestion || voiceMuted) return
-    speakSuggestionText(SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel])
+    speakSuggestionText(getSuggestionMessage(proactiveSuggestion.kind, loadLevel, route !== null))
   }, [proactiveSuggestion?.id])
 
   // Which demo-bar simulation (if any) is currently active — the single
   // source of truth that keeps the four Simulation buttons mutually
   // exclusive. 'lowBattery' | 'longTrip' | 'weather' | 'meeting' | null.
   const [activeSimulation, setActiveSimulation] = useState(null)
-
-  // The single source of truth for "where are we headed": null means idle
-  // (no active route). The maneuver banner and trip meta are both derived
-  // from it so they can never show conflicting info.
-  const [route, setRoute] = useState(null)
-  const maneuver = maneuverFromRoute(route)
-  const tripMeta = tripMetaFromRoute(route)
 
   // Navigation focus mode: any active route means the driver just accepted
   // a nav action (accepted a suggestion, searched a destination, or ran a
@@ -1442,8 +1484,46 @@ function App() {
     }
   }
 
+  // Meeting's actual behavior (not just its wording) depends on live state
+  // — loadLevel and whether a route already exists — so unlike the other
+  // suggestion kinds, it has no fixed action captured at creation time.
+  // resolveMeetingSuggestion's actionKind (computed fresh at click time)
+  // says which of these to run.
+  const runMeetingAction = (actionKind) => {
+    if (actionKind === 'reroute') {
+      // Alternate path to the SAME destination — a route already exists,
+      // so this redraws the line rather than placing a new marker.
+      drawRouteTo(mapRef.current, [VEHICLE_POSITION, MEETING_ALT_WAYPOINT, MEETING_DESTINATION])
+      const fasterRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION)
+      setRoute(fasterRoute)
+      setCopilotResponse({
+        id: Date.now(),
+        text: `Rerouting — faster path to Koregaon Park, ${fasterRoute.distanceKm.toFixed(1)} km away.`,
+      })
+      return
+    }
+    if (actionKind === 'keep') {
+      // Low-key acknowledgement only — traffic looks fine, nothing to change.
+      setCopilotResponse({ id: Date.now(), text: 'Keeping your current route to the meeting.' })
+      return
+    }
+    // 'start' — the calendar knows the destination, but nothing is on the
+    // map yet, so this sets the initial route.
+    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
+    const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
+    setRoute(meetingRoute)
+    setCopilotResponse({
+      id: Date.now(),
+      text: `Navigating to Koregaon Park — ${meetingRoute.distanceKm.toFixed(1)} km away.`,
+    })
+  }
+
   const handleSuggestionPrimary = () => {
-    proactiveSuggestion?.action()
+    if (proactiveSuggestion?.kind === 'meeting') {
+      runMeetingAction(resolveMeetingSuggestion(loadLevel, route !== null).actionKind)
+    } else {
+      proactiveSuggestion?.action()
+    }
     setProactiveSuggestion(null)
   }
 
@@ -1455,21 +1535,10 @@ function App() {
     setRoute(longRoute)
   }
 
+  // No fixed primaryLabel/action here (unlike the other simulations) —
+  // both are derived live from loadLevel + route via resolveMeetingSuggestion.
   const handleSimMeeting = () => {
-    setProactiveSuggestion({
-      id: Date.now(),
-      kind: 'meeting',
-      primaryLabel: 'Navigate',
-      action: () => {
-        showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
-        const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
-        setRoute(meetingRoute)
-        setCopilotResponse({
-          id: Date.now(),
-          text: `Navigating to Koregaon Park — ${meetingRoute.distanceKm.toFixed(1)} km away.`,
-        })
-      },
-    })
+    setProactiveSuggestion({ id: Date.now(), kind: 'meeting' })
   }
 
   // Reverses whichever simulation was active — restores its underlying
