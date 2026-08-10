@@ -948,8 +948,8 @@ body {
    with no glow and no inset. Scales with the card's own width (cqw) so it
    shrinks smoothly on narrow cards instead of overflowing. */
 .media-art-frame {
-  width: clamp(36px, 30.03cqw, 88px);
-  height: clamp(36px, 30.03cqw, 88px);
+  width: clamp(32px, 25.5cqw, 76px);
+  height: clamp(32px, 25.5cqw, 76px);
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 20%;
@@ -1002,6 +1002,10 @@ body {
 
 .media-progress {
   flex-shrink: 0;
+  /* Extra breathing room above the progress bar specifically, on top of
+     .media-card's own gap — isolated here (rather than raising that shared
+     gap) so it doesn't also push the controls row further from the bar. */
+  margin-top: clamp(4px, 2.34cqw, 8px);
 }
 
 .media-times {
@@ -1329,27 +1333,6 @@ body {
 .proactive-suggestion__eyebrow svg {
   width: 12px;
   height: 12px;
-}
-
-.proactive-suggestion__speak {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-left: 2px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgba(240, 185, 92, 0.14);
-  color: inherit;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.proactive-suggestion__speak:hover {
-  background: rgba(240, 185, 92, 0.28);
-  color: var(--text-primary);
 }
 
 .proactive-suggestion__message {

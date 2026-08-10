@@ -77,6 +77,15 @@ const SIMULATIONS = [
 const SPEED_BY_LOAD = { idle: 0, cruising: 64, congested: 18 }
 const GEAR_BY_LOAD = { idle: 'P', cruising: 'D', congested: 'D' }
 
+// Parked draws power (climate, electronics) rather than covering distance,
+// so it's shown as a power draw (kW) instead of a distance-based efficiency
+// figure, which only makes sense once the vehicle is actually moving.
+const EFFICIENCY_BY_LOAD = {
+  idle: { label: 'Energy', value: '1.8 kW' },
+  cruising: { label: 'Efficiency', value: '5.5 km/kWh' },
+  congested: { label: 'Efficiency', value: '8.2 km/kWh' },
+}
+
 // Proactive suggestions read the driver's actual advice, not just its
 // wording, off loadLevel: idle has time/attention to spare, so the copilot
 // frames things around planning ahead; cruising is a light, low-pressure
@@ -618,8 +627,8 @@ function SpeedHeroPanel({ gear, onGearChange, loadLevel, batteryLevel }) {
               <span className="chip__value">Ready</span>
             </span>
             <span className="chip">
-              <span className="chip__label">Efficiency</span>
-              <span className="chip__value">Medium</span>
+              <span className="chip__label">{EFFICIENCY_BY_LOAD[loadLevel].label}</span>
+              <span className="chip__value">{EFFICIENCY_BY_LOAD[loadLevel].value}</span>
             </span>
           </div>
         </div>
@@ -1223,7 +1232,7 @@ function CopilotBar({ onSubmit, response }) {
 // A card the copilot shows on its own initiative (not in response to a
 // command) — visually distinct from CopilotBar's reactive responses via the
 // amber "Copilot suggestion" eyebrow and its own action buttons.
-function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss, onSpeak }) {
+function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss }) {
   if (!suggestion) return null
 
   return (
@@ -1233,34 +1242,7 @@ function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss, onSpeak }) 
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z" />
           </svg>
-          Copilot Suggestion
-          {speechSynthesisSupported && (
-            <button
-              type="button"
-              className="proactive-suggestion__speak"
-              onClick={onSpeak}
-              aria-label="Read suggestion aloud"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M4 9v6h4l5 5V4L8 9H4z" />
-                <path
-                  d="M16.5 8.5a5 5 0 010 7"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M19 6a9 9 0 010 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  opacity="0.6"
-                />
-              </svg>
-            </button>
-          )}
+          Copilot
         </span>
         <p className="proactive-suggestion__message">{suggestion.message}</p>
       </div>
@@ -1333,11 +1315,6 @@ function App() {
     if (!proactiveSuggestion || voiceMuted) return
     speakSuggestionText(SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel])
   }, [proactiveSuggestion?.id])
-
-  const handleSpeakActiveSuggestion = () => {
-    if (!activeSuggestion || voiceMuted) return
-    speakSuggestionText(activeSuggestion.message)
-  }
 
   // Which demo-bar simulation (if any) is currently active — the single
   // source of truth that keeps the four Simulation buttons mutually
@@ -1586,7 +1563,6 @@ function App() {
             suggestion={activeSuggestion}
             onPrimary={handleSuggestionPrimary}
             onDismiss={handleDismissSuggestion}
-            onSpeak={handleSpeakActiveSuggestion}
           />
           <CopilotBar onSubmit={handleCopilotSubmit} response={copilotResponse} />
         </div>
