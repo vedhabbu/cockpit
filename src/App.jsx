@@ -1230,20 +1230,14 @@ function CopilotBar({ onSubmit, response }) {
 }
 
 // A card the copilot shows on its own initiative (not in response to a
-// command) — visually distinct from CopilotBar's reactive responses via the
-// amber "Copilot suggestion" eyebrow and its own action buttons.
+// command) — visually distinct from CopilotBar's reactive responses via its
+// amber border/glow and its own action buttons.
 function ProactiveSuggestionCard({ suggestion, onPrimary, onDismiss }) {
   if (!suggestion) return null
 
   return (
     <div className="proactive-suggestion" key={suggestion.id}>
       <div className="proactive-suggestion__text">
-        <span className="proactive-suggestion__eyebrow">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z" />
-          </svg>
-          Copilot
-        </span>
         <p className="proactive-suggestion__message">{suggestion.message}</p>
       </div>
       <div className="proactive-suggestion__actions">
