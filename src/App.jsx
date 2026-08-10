@@ -84,9 +84,9 @@ const GEAR_BY_LOAD = { idle: 'P', cruising: 'D', congested: 'D' }
 // briefest and — where the action allows it — offers to just handle it
 // rather than asking the driver to weigh options.
 const LOW_BATTERY_MESSAGES = {
-  idle: "Battery's low. Good moment to charge — shall I set a route to Hinjewadi, 11 km?",
-  cruising: 'Battery low. Charger 11 km ahead in Hinjewadi. Want me to route?',
-  congested: "Battery low and traffic's draining it fast. I can route to a charger 11 km ahead — go?",
+  idle: 'Battery low. Want me to find the nearest charger?',
+  cruising: "Battery's running low. Route to the nearest charger?",
+  congested: "Battery low and traffic's draining it fast. I'll route to the nearest charger — go?",
 }
 
 const RANGE_MESSAGES = {
