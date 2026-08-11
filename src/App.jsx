@@ -34,14 +34,29 @@ const LONG_TRIP_DESTINATION = [73.79, 15.451] // ~340 km south of Bavdhan — de
 const RANGE_CHARGER_POSITION = [74.0183, 17.6805]
 const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo calendar destination
 const LOWER_PAREL_POSITION = [72.833, 18.996] // Lower Parel, Mumbai — demo "cruising" meeting destination (inter-city)
-// Real Pune -> Mumbai road distance/time (~150 km, ~3h by highway) is very
-// different from this app's flat 30 km/h haversine estimate (which badly
-// underestimates both for a long highway trip) — used only as the
-// fallback when OSRM itself is unreachable, so the numbers stay realistic
-// even without live routing data.
+// Real Pune -> Mumbai road distance (~150 km) is very different from this
+// app's flat 30 km/h haversine estimate (which badly underestimates it for
+// a long highway trip) — used only as the fallback when OSRM itself is
+// unreachable, so the distance stays realistic even without live routing
+// data. Distance is otherwise always OSRM's real number when available;
+// see LOWER_PAREL_LATE_MINUTES/LOWER_PAREL_FASTER_MINUTES below for why
+// TIME, unlike distance, is always pinned rather than left to OSRM.
 const LOWER_PAREL_FALLBACK_DISTANCE_KM = 150
-const LOWER_PAREL_FALLBACK_MINUTES = 185 // ~3h 05m
-const LOWER_PAREL_FALLBACK_FASTER_MINUTES = 150 // ~2h 30m
+
+// The "running late" / "fixed it" demo narrative needs the ETA to land on
+// specific sides of the meeting time — a couple of minutes past it before
+// the reroute, a comfortable margin before it after — and OSRM's real
+// live duration won't reliably do that on its own. So, unlike distance
+// (always real OSRM data when available), TIME for both meeting scenarios
+// is deliberately pinned to these values rather than read from OSRM,
+// whether OSRM succeeds or not. APP_CLOCK is 5:20 PM throughout.
+const CONGESTED_MEETING_LATE_MINUTES = 39 // 5:20 PM + 39 min -> 5:59 PM, cutting it close to the 6 PM meeting
+const CONGESTED_MEETING_FASTER_MINUTES = 30 // 5:20 PM + 30 min -> 5:50 PM, comfortable margin
+// Cruising's meeting is later than the 6 PM Koregaon Park one — a ~2h30m+
+// highway drive can't realistically make a 6 PM meeting, so this scenario
+// treats it as an 8 PM meeting instead (see LOWER_PAREL_MEETING_TIME_MINUTES).
+const LOWER_PAREL_LATE_MINUTES = 162 // 5:20 PM + 162 min -> 8:02 PM, just past the 8 PM meeting
+const LOWER_PAREL_FASTER_MINUTES = 150 // 5:20 PM + 150 min -> 7:50 PM, comfortably before
 const MAP_ZOOM = 13
 const MAP_PITCH = 45
 const ACTIVE_ROUTE_SOURCE_ID = 'active-route'
@@ -130,14 +145,15 @@ const SUGGESTION_MESSAGES_BY_KIND = {
   coldWeather: COLD_WEATHER_MESSAGES,
 }
 
-const MEETING_TIME_MINUTES = 18 * 60 // 6:00 PM — matches the "6 PM meeting" copy throughout
+const MEETING_TIME_MINUTES = 18 * 60 // 6:00 PM — the Koregaon Park meeting (idle/congested)
+const LOWER_PAREL_MEETING_TIME_MINUTES = 20 * 60 // 8:00 PM — the Lower Parel meeting (cruising, see its constants above)
 const MEETING_IDLE_MESSAGE = 'Calendar shows a 6 PM meeting across town. Want me to take the fastest route there?'
 
 // True once a route's ETA (APP_CLOCK + its estimated minutes) would land
-// after the 6 PM meeting time — the only condition that justifies
+// after the given meeting time — the only condition that justifies
 // interrupting with a "you're running late" suggestion.
-function isMeetingAtRisk(route) {
-  return APP_CLOCK.hours * 60 + APP_CLOCK.minutes + route.minutes > MEETING_TIME_MINUTES
+function isMeetingAtRisk(route, meetingTimeMinutes = MEETING_TIME_MINUTES) {
+  return APP_CLOCK.hours * 60 + APP_CLOCK.minutes + route.minutes > meetingTimeMinutes
 }
 
 // The car only knows about the meeting because it's a calendar event — it
@@ -148,13 +164,14 @@ function isMeetingAtRisk(route) {
 // route-modification framing only makes sense if a route already exists:
 // congested always has one (see handleSimMeeting) and always offers a
 // faster alternate; cruising's inter-city trip only interrupts at all if
-// its ETA is actually at risk of missing the meeting — otherwise there's
-// nothing wrong to interrupt for, so no suggestion is shown (null).
+// its ETA is actually at risk of missing its (later — see
+// LOWER_PAREL_MEETING_TIME_MINUTES) meeting — otherwise there's nothing
+// wrong to interrupt for, so no suggestion is shown (null).
 function resolveMeetingSuggestion(loadLevel, route) {
   if (loadLevel === 'cruising' && route) {
-    if (!isMeetingAtRisk(route)) return null
+    if (!isMeetingAtRisk(route, LOWER_PAREL_MEETING_TIME_MINUTES)) return null
     return {
-      message: 'Your ETA is now past your 6 PM meeting. Want me to find a faster route?',
+      message: 'Your ETA is just past your 8 PM meeting. Want a faster route?',
       primaryLabel: 'Faster Route',
       actionKind: 'reroute',
     }
@@ -492,35 +509,34 @@ const FASTER_ROUTE_VIA_OFFSET_DEGREES = 0.045 // ~5 km — see perpendicularOffs
 // falls back to a straight line if OSRM is unreachable entirely. Draws the
 // result and returns its { distanceKm, minutes }.
 //
-// A real via-waypoint detour is often LONGER than the direct route, not
-// shorter — so "minutes" is deliberately NOT derived from the via-route's
-// own OSRM duration (that could end up slower than the route already on
-// screen, which would make "Faster Route" a lie). Instead it's always a
-// proportional shave off `currentMinutes` — the trip time actually being
-// shown right now — so the reroute is guaranteed to look faster than what
-// it's replacing, regardless of how much longer that route's real
-// distance/duration turned out to be. Only the LINE and displayed
-// DISTANCE come from the via-route's real geometry.
-async function resolveFasterRoute(map, origin, destination, currentMinutes, fallbackMinutes, fallbackDistanceKm) {
+// `minutes` is always the caller-supplied, pinned time — never the
+// via-route's own OSRM duration. A real via-waypoint detour is often
+// LONGER than the direct route, not shorter, so trusting its live
+// duration could make "Faster Route" show a time slower than the route it
+// replaced; the caller instead supplies whatever time the "running late" /
+// "fixed it" demo narrative actually needs (see e.g. LOWER_PAREL_FASTER_MINUTES).
+// Only the LINE and displayed DISTANCE come from OSRM's real geometry.
+// `fallbackDistanceKm` covers only the distance figure, used solely if
+// OSRM is unreachable and there's no real distance to show at all.
+async function resolveFasterRoute(map, origin, destination, minutes, fallbackDistanceKm) {
   const viaPoint = perpendicularOffsetMidpoint(origin, destination, FASTER_ROUTE_VIA_OFFSET_DEGREES)
-  const fasterMinutes = Math.max(1, Math.round(currentMinutes * 0.85))
 
   const viaRoutes = await fetchOsrmRoutes([origin, viaPoint, destination])
   if (viaRoutes?.length) {
     drawRouteTo(map, viaRoutes[0].coordinates)
-    return { distanceKm: viaRoutes[0].distanceKm, minutes: fasterMinutes }
+    return { distanceKm: viaRoutes[0].distanceKm, minutes }
   }
 
   const directRoutes = await fetchOsrmRoutes([origin, destination])
   if (directRoutes?.length) {
     drawRouteTo(map, directRoutes[0].coordinates)
-    return { distanceKm: directRoutes[0].distanceKm, minutes: fasterMinutes }
+    return { distanceKm: directRoutes[0].distanceKm, minutes }
   }
 
   // OSRM unreachable entirely — only now fall back to a straight-ish line.
   drawRouteTo(map, [origin, viaPoint, destination])
   const distanceKm = fallbackDistanceKm ?? haversineKm(origin, destination)
-  return { distanceKm, minutes: fallbackMinutes ?? fasterMinutes }
+  return { distanceKm, minutes }
 }
 
 // "passenger" wins if mentioned; "driver"/"me"/"I'm" mean driver; otherwise
@@ -1673,21 +1689,36 @@ function App() {
 
   // Draws the baseline meeting route (real road route via OSRM, falling
   // back to a straight line) and sets it active, with no copilot response
-  // of its own. Same-city Koregaon Park by default (idle's "Start
-  // Navigation" accept, and congested's pre-seed) — or, for cruising, the
-  // inter-city Pune -> Lower Parel trip, with a realistic fallback
-  // distance/time (see LOWER_PAREL_FALLBACK_*) for when OSRM itself is
-  // unreachable. Returns the route so callers can report on it.
+  // of its own.
+  //
+  // - 'cruising': the inter-city Pune -> Lower Parel trip, distance from
+  //   OSRM (or LOWER_PAREL_FALLBACK_DISTANCE_KM if unreachable) but TIME
+  //   pinned to LOWER_PAREL_LATE_MINUTES — see the "why pinned" comment
+  //   above that constant.
+  // - 'congested': the same-city Koregaon Park trip, distance from OSRM,
+  //   TIME pinned to CONGESTED_MEETING_LATE_MINUTES for the same reason.
+  // - anything else (idle's "Start Navigation" accept): the same Koregaon
+  //   Park trip, but with NO risk framing attached — this is just the
+  //   driver starting their trip, not a "running late" narrative — so it
+  //   uses OSRM's real time as-is, un-pinned.
+  //
+  // Returns the route so callers can report on it.
   const establishMeetingRoute = async (scenario) => {
     if (scenario === 'cruising') {
-      const { distanceKm, minutes } = await showDestinationRoute(
+      const { distanceKm } = await showDestinationRoute(
         mapRef.current,
         destinationMarkerRef,
         chargerMarkerRef,
         LOWER_PAREL_POSITION,
-        { distanceKm: LOWER_PAREL_FALLBACK_DISTANCE_KM, minutes: LOWER_PAREL_FALLBACK_MINUTES }
+        { distanceKm: LOWER_PAREL_FALLBACK_DISTANCE_KM, minutes: LOWER_PAREL_LATE_MINUTES }
       )
-      const meetingRoute = buildRoute('Lower Parel', 'Mumbai', LOWER_PAREL_POSITION, distanceKm, minutes)
+      const meetingRoute = buildRoute('Lower Parel', 'Mumbai', LOWER_PAREL_POSITION, distanceKm, LOWER_PAREL_LATE_MINUTES)
+      setRoute(meetingRoute)
+      return meetingRoute
+    }
+    if (scenario === 'congested') {
+      const { distanceKm } = await showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
+      const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION, distanceKm, CONGESTED_MEETING_LATE_MINUTES)
       setRoute(meetingRoute)
       return meetingRoute
     }
@@ -1705,13 +1736,13 @@ function App() {
   const runMeetingAction = async (actionKind) => {
     if (actionKind === 'reroute' && loadLevel === 'cruising') {
       // Same Pune -> Lower Parel trip, a genuinely different road path
-      // (forced via a via-waypoint — see resolveFasterRoute).
+      // (forced via a via-waypoint — see resolveFasterRoute), with its
+      // time pinned to LOWER_PAREL_FASTER_MINUTES.
       const { distanceKm, minutes } = await resolveFasterRoute(
         mapRef.current,
         VEHICLE_POSITION,
         LOWER_PAREL_POSITION,
-        route.minutes,
-        LOWER_PAREL_FALLBACK_FASTER_MINUTES,
+        LOWER_PAREL_FASTER_MINUTES,
         LOWER_PAREL_FALLBACK_DISTANCE_KM
       )
       const fasterRoute = buildRoute('Lower Parel', 'Faster route to your meeting', LOWER_PAREL_POSITION, distanceKm, minutes)
@@ -1723,8 +1754,9 @@ function App() {
       return
     }
     if (actionKind === 'reroute') {
-      // congested — same origin/destination, a genuinely different road path.
-      const { distanceKm, minutes } = await resolveFasterRoute(mapRef.current, VEHICLE_POSITION, MEETING_DESTINATION, route.minutes)
+      // congested — same origin/destination, a genuinely different road
+      // path, time pinned to CONGESTED_MEETING_FASTER_MINUTES.
+      const { distanceKm, minutes } = await resolveFasterRoute(mapRef.current, VEHICLE_POSITION, MEETING_DESTINATION, CONGESTED_MEETING_FASTER_MINUTES)
       const fasterRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION, distanceKm, minutes)
       setRoute(fasterRoute)
       setCopilotResponse({
@@ -1779,7 +1811,7 @@ function App() {
     if (loadLevel === 'cruising') {
       await establishMeetingRoute('cruising')
     } else if (loadLevel === 'congested') {
-      await establishMeetingRoute()
+      await establishMeetingRoute('congested')
     }
     setProactiveSuggestion({ id: Date.now(), kind: 'meeting' })
   }
