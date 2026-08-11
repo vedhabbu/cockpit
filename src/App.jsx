@@ -38,6 +38,11 @@ const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo c
 // visibly a different path to the same destination, not just the same line
 // redrawn.
 const MEETING_ALT_WAYPOINT = [73.858, 18.487]
+const MUMBAI_POSITION = [72.8777, 19.076] // Mumbai — demo "cruising" meeting destination (inter-city)
+// Bowed well south of the direct Bavdhan -> Mumbai line so the "faster
+// route" reroute is obviously a different path once the map is zoomed out
+// to fit this much longer inter-city trip.
+const MUMBAI_ALT_WAYPOINT = [73.2, 18.6]
 const MAP_ZOOM = 13
 const MAP_PITCH = 45
 const ACTIVE_ROUTE_SOURCE_ID = 'active-route'
@@ -126,22 +131,44 @@ const SUGGESTION_MESSAGES_BY_KIND = {
   coldWeather: COLD_WEATHER_MESSAGES,
 }
 
+const MEETING_TIME_MINUTES = 18 * 60 // 6:00 PM — matches the "6 PM meeting" copy throughout
+// Demo timing for the cruising Pune -> Mumbai scenario. This app has no
+// highway-speed model (estimateMinutes assumes flat 30 km/h everywhere), so
+// a real distance-based estimate for ~115 km would land hours late — these
+// are picked directly instead, so the baseline trip lands just a few
+// minutes past the 6 PM meeting (justifying the "at risk" suggestion) and
+// the faster reroute visibly pulls it back to a few minutes before.
+const MEETING_LATE_MINUTES = 46 // APP_CLOCK (5:20 PM) + 46 min -> 6:06 PM
+const MEETING_FASTER_MINUTES = 33 // APP_CLOCK (5:20 PM) + 33 min -> 5:53 PM
+const MEETING_IDLE_MESSAGE = 'Calendar shows a 6 PM meeting across town. Want me to take the fastest route there?'
+
+// True once a route's ETA (APP_CLOCK + its estimated minutes) would land
+// after the 6 PM meeting time — the only condition that justifies
+// interrupting with a "you're running late" suggestion.
+function isMeetingAtRisk(route) {
+  return APP_CLOCK.hours * 60 + APP_CLOCK.minutes + route.minutes > MEETING_TIME_MINUTES
+}
+
 // The car only knows about the meeting because it's a calendar event — it
 // has a destination and a time, but no route exists until the driver
-// accepts. So idle always frames this as "start navigation" (nothing is on
-// the map yet). Once driving, "keep the route" / "faster route" framing
-// only makes sense if a route already exists to modify — with no route,
-// cruising/congested fall back to the same "start navigation" framing as
-// idle, so the copilot never references a route that isn't actually there.
-function resolveMeetingSuggestion(loadLevel, hasRoute) {
-  if (loadLevel === 'cruising' && hasRoute) {
+// accepts. So idle (and any context with no route yet) frames this as
+// "start navigation," since the driver is in the car and about to leave —
+// there's nothing left to plan ahead of time, just go. Once driving,
+// route-modification framing only makes sense if a route already exists:
+// congested always has one (see handleSimMeeting) and always offers a
+// faster alternate; cruising's inter-city trip only interrupts at all if
+// its ETA is actually at risk of missing the meeting — otherwise there's
+// nothing wrong to interrupt for, so no suggestion is shown (null).
+function resolveMeetingSuggestion(loadLevel, route) {
+  if (loadLevel === 'cruising' && route) {
+    if (!isMeetingAtRisk(route)) return null
     return {
-      message: "6 PM meeting — you're on pace to Koregaon Park. Route looks clear.",
-      primaryLabel: 'Keep Route',
-      actionKind: 'keep',
+      message: 'Your ETA is now past your 6 PM meeting. Want me to find a faster route?',
+      primaryLabel: 'Faster Route',
+      actionKind: 'reroute',
     }
   }
-  if (loadLevel === 'congested' && hasRoute) {
+  if (loadLevel === 'congested' && route) {
     return {
       message: "Traffic's building on your route to the 6 PM meeting. Take a faster route?",
       primaryLabel: 'Faster Route',
@@ -149,17 +176,18 @@ function resolveMeetingSuggestion(loadLevel, hasRoute) {
     }
   }
   return {
-    message: 'Calendar shows a 6 PM meeting across town. Leave by 5:35 to arrive on time. Start navigation?',
+    message: MEETING_IDLE_MESSAGE,
     primaryLabel: 'Start Navigation',
     actionKind: 'start',
   }
 }
 
 // Suggestion message text, live-derived from the CURRENT loadLevel (and,
-// for 'meeting', whether a route currently exists) — used by both the
-// on-screen card and the speak-aloud effect so they can never disagree.
-function getSuggestionMessage(kind, loadLevel, hasRoute) {
-  if (kind === 'meeting') return resolveMeetingSuggestion(loadLevel, hasRoute).message
+// for 'meeting', the current route) — used by both the on-screen card and
+// the speak-aloud effect so they can never disagree. Returns null when
+// 'meeting' has decided there's nothing worth interrupting for right now.
+function getSuggestionMessage(kind, loadLevel, route) {
+  if (kind === 'meeting') return resolveMeetingSuggestion(loadLevel, route)?.message ?? null
   return SUGGESTION_MESSAGES_BY_KIND[kind][loadLevel]
 }
 
@@ -1334,11 +1362,19 @@ function App() {
   // loadLevel (and, for 'meeting', route), not whatever they were the
   // moment the suggestion fired.
   const [proactiveSuggestion, setProactiveSuggestion] = useState(null)
-  const activeSuggestion = proactiveSuggestion && {
-    ...proactiveSuggestion,
-    ...(proactiveSuggestion.kind === 'meeting'
-      ? resolveMeetingSuggestion(loadLevel, route !== null)
-      : { message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel] }),
+  // A plain `&&`/spread chain can't express "hide the card entirely" —
+  // resolveMeetingSuggestion returns null when cruising's ETA is fine (see
+  // its comment), and that null needs to make the WHOLE suggestion
+  // disappear, not just leave message undefined on an otherwise-visible card.
+  let activeSuggestion = null
+  if (proactiveSuggestion?.kind === 'meeting') {
+    const meetingView = resolveMeetingSuggestion(loadLevel, route)
+    activeSuggestion = meetingView && { ...proactiveSuggestion, ...meetingView }
+  } else if (proactiveSuggestion) {
+    activeSuggestion = {
+      ...proactiveSuggestion,
+      message: SUGGESTION_MESSAGES_BY_KIND[proactiveSuggestion.kind][loadLevel],
+    }
   }
   const [voiceMuted, setVoiceMuted] = useState(false)
 
@@ -1356,7 +1392,7 @@ function App() {
   // above) without re-triggering speech and spamming the driver.
   useEffect(() => {
     if (!proactiveSuggestion || voiceMuted) return
-    speakSuggestionText(getSuggestionMessage(proactiveSuggestion.kind, loadLevel, route !== null))
+    speakSuggestionText(getSuggestionMessage(proactiveSuggestion.kind, loadLevel, route))
   }, [proactiveSuggestion?.id])
 
   // Which demo-bar simulation (if any) is currently active — the single
@@ -1484,12 +1520,20 @@ function App() {
     }
   }
 
-  // Draws the baseline Bavdhan -> Koregaon Park route and sets it active,
-  // with no copilot response of its own — used both when the driver
-  // accepts "Start Navigation" (idle) and to silently pre-seed the
-  // "already driving to the meeting" state that cruising/congested assume
-  // (see handleSimMeeting). Returns the route so callers can report on it.
-  const establishMeetingRoute = () => {
+  // Draws the baseline meeting route and sets it active, with no copilot
+  // response of its own. Same-city Koregaon Park by default (idle's
+  // "Start Navigation" accept, and congested's pre-seed) — or, for
+  // cruising, the inter-city Pune -> Mumbai trip, with its ETA overridden
+  // to land just past the 6 PM meeting (see MEETING_LATE_MINUTES) so the
+  // "at risk" suggestion that follows (see handleSimMeeting) has a real
+  // reason to fire. Returns the route so callers can report on it.
+  const establishMeetingRoute = (scenario) => {
+    if (scenario === 'cruising') {
+      showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MUMBAI_POSITION)
+      const meetingRoute = { ...buildRoute('Mumbai', 'Meeting location', MUMBAI_POSITION), minutes: MEETING_LATE_MINUTES }
+      setRoute(meetingRoute)
+      return meetingRoute
+    }
     showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
     const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
     setRoute(meetingRoute)
@@ -1502,12 +1546,26 @@ function App() {
   // resolveMeetingSuggestion's actionKind (computed fresh at click time)
   // says which of these to run.
   const runMeetingAction = (actionKind) => {
+    if (actionKind === 'reroute' && loadLevel === 'cruising') {
+      // Same Pune -> Mumbai trip, different path — redrawn through an
+      // offset waypoint so it's visibly a new route, with the ETA brought
+      // back under the 6 PM meeting (see MEETING_FASTER_MINUTES).
+      drawRouteTo(mapRef.current, [VEHICLE_POSITION, MUMBAI_ALT_WAYPOINT, MUMBAI_POSITION])
+      const baseRoute = buildRoute('Mumbai', 'Faster route to your meeting', MUMBAI_POSITION)
+      const fasterRoute = { ...baseRoute, minutes: MEETING_FASTER_MINUTES }
+      setRoute(fasterRoute)
+      setCopilotResponse({
+        id: Date.now(),
+        text: `Rerouting — faster path to Mumbai, now arriving ${formatETA(fasterRoute.minutes)}.`,
+      })
+      return
+    }
     if (actionKind === 'reroute') {
-      // Same origin/destination, different path — redraws the line through
-      // an offset waypoint so it's visibly a new route, not the old one
-      // redrawn, and shaves a few minutes off the ETA to reflect lighter
-      // traffic on the alternate (straight-line distance is unchanged,
-      // since the endpoints haven't moved).
+      // congested — same origin/destination, different path — redraws the
+      // line through an offset waypoint so it's visibly a new route, not
+      // the old one redrawn, and shaves a few minutes off the ETA to
+      // reflect lighter traffic on the alternate (straight-line distance
+      // is unchanged, since the endpoints haven't moved).
       drawRouteTo(mapRef.current, [VEHICLE_POSITION, MEETING_ALT_WAYPOINT, MEETING_DESTINATION])
       const baseRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION)
       const fasterRoute = { ...baseRoute, minutes: Math.max(1, baseRoute.minutes - 4) }
@@ -1534,7 +1592,8 @@ function App() {
 
   const handleSuggestionPrimary = () => {
     if (proactiveSuggestion?.kind === 'meeting') {
-      runMeetingAction(resolveMeetingSuggestion(loadLevel, route !== null).actionKind)
+      const actionKind = resolveMeetingSuggestion(loadLevel, route)?.actionKind
+      if (actionKind) runMeetingAction(actionKind)
     } else {
       proactiveSuggestion?.action()
     }
@@ -1553,11 +1612,15 @@ function App() {
   // both are derived live from loadLevel + route via resolveMeetingSuggestion.
   // Cruising/congested mean the driver is already underway, so — unlike
   // idle, which stays route-less until "Start Navigation" is accepted —
-  // this silently pre-seeds the Bavdhan -> Koregaon Park route first, so
-  // the suggestion's "your route"/"faster route" framing is never talking
-  // about a route that doesn't actually exist yet.
+  // this silently pre-seeds the "already driving to the meeting" route
+  // first, so the suggestion's "your route"/"faster route" framing is
+  // never talking about a route that doesn't actually exist yet. Cruising
+  // gets the inter-city Pune -> Mumbai trip; congested keeps the same-city
+  // Koregaon Park trip, unchanged.
   const handleSimMeeting = () => {
-    if (loadLevel === 'cruising' || loadLevel === 'congested') {
+    if (loadLevel === 'cruising') {
+      establishMeetingRoute('cruising')
+    } else if (loadLevel === 'congested') {
       establishMeetingRoute()
     }
     setProactiveSuggestion({ id: Date.now(), kind: 'meeting' })
