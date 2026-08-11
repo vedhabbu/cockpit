@@ -11,7 +11,8 @@
       "Bash(kill 79719)",
       "Bash(grep -n \"<NavCard\\\\|</div>\\\\s*$\\\\|<DemoControlBar\" /Users/vedhabbu/Desktop/cockpit/src/App.jsx)",
       "Bash(npm -v)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(grep -n \"input\\\\[placeholder=\\\\\"Search destination\\\\\"\\\\]\" /dev/null; true)"
     ]
   }
 }

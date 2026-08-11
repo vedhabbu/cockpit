@@ -38,11 +38,21 @@ const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo c
 // visibly a different path to the same destination, not just the same line
 // redrawn.
 const MEETING_ALT_WAYPOINT = [73.858, 18.487]
-const MUMBAI_POSITION = [72.8777, 19.076] // Mumbai — demo "cruising" meeting destination (inter-city)
-// Bowed well south of the direct Bavdhan -> Mumbai line so the "faster
-// route" reroute is obviously a different path once the map is zoomed out
-// to fit this much longer inter-city trip.
-const MUMBAI_ALT_WAYPOINT = [73.2, 18.6]
+const LOWER_PAREL_POSITION = [72.833, 18.996] // Lower Parel, Mumbai — demo "cruising" meeting destination (inter-city)
+// Bowed well south of the direct Bavdhan -> Lower Parel line — only used as
+// a last-resort fallback (see resolveFasterRoute) when OSRM can't offer a
+// real alternate road, so the "faster route" reroute is still obviously a
+// different path once the map is zoomed out to fit this much longer
+// inter-city trip.
+const LOWER_PAREL_ALT_WAYPOINT = [73.2, 18.6]
+// Real Pune -> Mumbai road distance/time (~150 km, ~3h by highway) is very
+// different from this app's flat 30 km/h haversine estimate (which badly
+// underestimates both for a long highway trip) — used only as the
+// fallback when OSRM itself is unreachable, so the numbers stay realistic
+// even without live routing data.
+const LOWER_PAREL_FALLBACK_DISTANCE_KM = 150
+const LOWER_PAREL_FALLBACK_MINUTES = 185 // ~3h 05m
+const LOWER_PAREL_FALLBACK_FASTER_MINUTES = 150 // ~2h 30m
 const MAP_ZOOM = 13
 const MAP_PITCH = 45
 const ACTIVE_ROUTE_SOURCE_ID = 'active-route'
@@ -132,14 +142,6 @@ const SUGGESTION_MESSAGES_BY_KIND = {
 }
 
 const MEETING_TIME_MINUTES = 18 * 60 // 6:00 PM — matches the "6 PM meeting" copy throughout
-// Demo timing for the cruising Pune -> Mumbai scenario. This app has no
-// highway-speed model (estimateMinutes assumes flat 30 km/h everywhere), so
-// a real distance-based estimate for ~115 km would land hours late — these
-// are picked directly instead, so the baseline trip lands just a few
-// minutes past the 6 PM meeting (justifying the "at risk" suggestion) and
-// the faster reroute visibly pulls it back to a few minutes before.
-const MEETING_LATE_MINUTES = 46 // APP_CLOCK (5:20 PM) + 46 min -> 6:06 PM
-const MEETING_FASTER_MINUTES = 33 // APP_CLOCK (5:20 PM) + 33 min -> 5:53 PM
 const MEETING_IDLE_MESSAGE = 'Calendar shows a 6 PM meeting across town. Want me to take the fastest route there?'
 
 // True once a route's ETA (APP_CLOCK + its estimated minutes) would land
@@ -233,11 +235,31 @@ function formatETA(minutesFromNow) {
   return `${hours12}:${String(mins).padStart(2, '0')} ${period}`
 }
 
+// "46 min" for short trips, "3h 05m" once an hour or more — so realistic
+// multi-hour inter-city trips (Pune -> Lower Parel, the Goa long trip) read
+// naturally instead of as one big, hard-to-parse minute count.
+function formatDuration(minutes) {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return `${hours}h ${String(mins).padStart(2, '0')}m`
+}
+
 // A route is the single source of truth for the maneuver banner and trip
-// meta — both are derived from it so they can never disagree.
-function buildRoute(label, subtitle, destination) {
-  const distanceKm = haversineKm(VEHICLE_POSITION, destination)
-  return { label, subtitle, destination, distanceKm, minutes: estimateMinutes(distanceKm) }
+// meta — both are derived from it so they can never disagree. distanceKm
+// and minutes are usually supplied by the caller (from OSRM's real road
+// route, or a realistic fallback for it) — when omitted, falls back to a
+// flat-speed haversine estimate to VEHICLE_POSITION, fine for short local
+// hops but not meant for long inter-city trips.
+function buildRoute(label, subtitle, destination, distanceKm, minutes) {
+  const resolvedDistanceKm = distanceKm ?? haversineKm(VEHICLE_POSITION, destination)
+  return {
+    label,
+    subtitle,
+    destination,
+    distanceKm: resolvedDistanceKm,
+    minutes: minutes ?? estimateMinutes(resolvedDistanceKm),
+  }
 }
 
 function maneuverFromRoute(route) {
@@ -253,7 +275,7 @@ function maneuverFromRoute(route) {
 function tripMetaFromRoute(route) {
   if (!route) return null
   return {
-    minutesText: `${route.minutes} min`,
+    minutesText: formatDuration(route.minutes),
     distanceText: `${route.distanceKm.toFixed(1)} km`,
     etaText: formatETA(route.minutes),
   }
@@ -318,24 +340,77 @@ function removeMarker(markerRef) {
   }
 }
 
+const OSRM_ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving'
+const OSRM_TIMEOUT_MS = 6000
+
+// Fetches real road-following route(s) between ordered [lon, lat] waypoints
+// from the free public OSRM demo server (no API key). Resolves to an array
+// of { coordinates, distanceKm, minutes, legs } — one entry per route OSRM
+// offers, primary first (`alternatives: true` asks for more than one) —
+// or null on ANY failure (network error, timeout, non-OK response, no
+// route found), so every caller can fall back to a straight line instead.
+// This is always best-effort: the public demo server has no uptime
+// guarantee, so nothing here should ever be treated as required for the
+// app to work.
+async function fetchOsrmRoutes(waypoints, { alternatives = false } = {}) {
+  const coords = waypoints.map(([lon, lat]) => `${lon},${lat}`).join(';')
+  const url = `${OSRM_ROUTE_URL}/${coords}?overview=full&geometries=geojson${alternatives ? '&alternatives=true' : ''}`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), OSRM_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.code !== 'Ok' || !data.routes?.length) return null
+    return data.routes.map((r) => ({
+      coordinates: r.geometry.coordinates,
+      distanceKm: r.distance / 1000,
+      minutes: Math.max(1, Math.round(r.duration / 60)),
+      legs: r.legs.map((leg) => ({
+        distanceKm: leg.distance / 1000,
+        minutes: Math.max(1, Math.round(leg.duration / 60)),
+      })),
+    }))
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 // The charger marker is hidden until requested — add it (once) and draw the
-// route to it. `chargerMarkerRef` tracks the live Marker instance so it can
-// be removed again later by clearActiveRoute.
-function showChargerRoute(map, chargerMarkerRef, destinationMarkerRef) {
-  if (!map) return
+// real road route to it via OSRM, falling back to a straight line if OSRM
+// is unreachable. `chargerMarkerRef` tracks the live Marker instance so it
+// can be removed again later by clearActiveRoute. Returns the resolved
+// { distanceKm, minutes } so the caller can build the route object.
+async function showChargerRoute(map, chargerMarkerRef, destinationMarkerRef) {
+  const fallbackDistanceKm = haversineKm(VEHICLE_POSITION, CHARGER_POSITION)
+  if (!map) return { distanceKm: fallbackDistanceKm, minutes: estimateMinutes(fallbackDistanceKm) }
   removeMarker(destinationMarkerRef)
   if (!chargerMarkerRef.current) {
     chargerMarkerRef.current = new maplibregl.Marker({ element: createChargerMarkerEl() })
       .setLngLat(CHARGER_POSITION)
       .addTo(map)
   }
+  const routes = await fetchOsrmRoutes([VEHICLE_POSITION, CHARGER_POSITION])
+  if (routes?.length) {
+    drawRouteTo(map, routes[0].coordinates)
+    return { distanceKm: routes[0].distanceKm, minutes: routes[0].minutes }
+  }
   drawRouteTo(map, [VEHICLE_POSITION, CHARGER_POSITION])
+  return { distanceKm: fallbackDistanceKm, minutes: estimateMinutes(fallbackDistanceKm) }
 }
 
 // A generic geocoded destination — same pattern as the charger, but the
-// marker moves to wherever the copilot resolves the place name to.
-function showDestinationRoute(map, destinationMarkerRef, chargerMarkerRef, coords) {
-  if (!map) return
+// marker moves to wherever the copilot resolves the place name to, and the
+// route is drawn via OSRM (falling back to a straight line). `fallback`
+// lets a caller supply a realistic distance/minutes to use instead of the
+// haversine/flat-speed guess when that guess would be badly wrong (e.g. a
+// multi-hour highway trip) — only used if OSRM itself is unreachable.
+async function showDestinationRoute(map, destinationMarkerRef, chargerMarkerRef, coords, fallback) {
+  const fallbackDistanceKm = fallback?.distanceKm ?? haversineKm(VEHICLE_POSITION, coords)
+  const fallbackMinutes = fallback?.minutes ?? estimateMinutes(fallbackDistanceKm)
+  if (!map) return { distanceKm: fallbackDistanceKm, minutes: fallbackMinutes }
   removeMarker(chargerMarkerRef)
   if (destinationMarkerRef.current) {
     destinationMarkerRef.current.setLngLat(coords)
@@ -344,16 +419,25 @@ function showDestinationRoute(map, destinationMarkerRef, chargerMarkerRef, coord
       .setLngLat(coords)
       .addTo(map)
   }
+  const routes = await fetchOsrmRoutes([VEHICLE_POSITION, coords])
+  if (routes?.length) {
+    drawRouteTo(map, routes[0].coordinates)
+    return { distanceKm: routes[0].distanceKm, minutes: routes[0].minutes }
+  }
   drawRouteTo(map, [VEHICLE_POSITION, coords])
+  return { distanceKm: fallbackDistanceKm, minutes: fallbackMinutes }
 }
 
 // Unlike showChargerRoute (which replaces the destination with the charger
-// as the new endpoint), this keeps BOTH markers up and draws the route
-// through the charger on the way to the original destination — vehicle ->
-// charger -> destination — so the charger visibly sits en route instead of
-// being a detour to a random direction.
-function showChargerStopEnRoute(map, chargerMarkerRef, destinationMarkerRef, chargerCoords, destinationCoords) {
-  if (!map) return
+// as the new endpoint), this keeps BOTH markers up and draws the real road
+// route through the charger on the way to the original destination —
+// vehicle -> charger -> destination — so the charger visibly sits en route
+// instead of being a detour to a random direction. Returns distance/minutes
+// for the FIRST leg only (vehicle -> charger), matching what's displayed —
+// the drawn line still continues on to the final destination either way.
+async function showChargerStopEnRoute(map, chargerMarkerRef, destinationMarkerRef, chargerCoords, destinationCoords) {
+  const fallbackDistanceKm = haversineKm(VEHICLE_POSITION, chargerCoords)
+  if (!map) return { distanceKm: fallbackDistanceKm, minutes: estimateMinutes(fallbackDistanceKm) }
   if (chargerMarkerRef.current) {
     chargerMarkerRef.current.setLngLat(chargerCoords)
   } else {
@@ -368,7 +452,13 @@ function showChargerStopEnRoute(map, chargerMarkerRef, destinationMarkerRef, cha
       .setLngLat(destinationCoords)
       .addTo(map)
   }
+  const routes = await fetchOsrmRoutes([VEHICLE_POSITION, chargerCoords, destinationCoords])
+  if (routes?.length) {
+    drawRouteTo(map, routes[0].coordinates)
+    return routes[0].legs[0]
+  }
   drawRouteTo(map, [VEHICLE_POSITION, chargerCoords, destinationCoords])
+  return { distanceKm: fallbackDistanceKm, minutes: estimateMinutes(fallbackDistanceKm) }
 }
 
 // Removes any active marker/route and flies back to the vehicle's fixed
@@ -380,6 +470,33 @@ function clearActiveRoute(map, chargerMarkerRef, destinationMarkerRef) {
   if (map.getLayer(ACTIVE_ROUTE_LAYER_ID)) map.removeLayer(ACTIVE_ROUTE_LAYER_ID)
   if (map.getSource(ACTIVE_ROUTE_SOURCE_ID)) map.removeSource(ACTIVE_ROUTE_SOURCE_ID)
   map.flyTo({ center: VEHICLE_POSITION, zoom: MAP_ZOOM, pitch: MAP_PITCH, speed: 1.2, curve: 1.4, essential: true })
+}
+
+// Tries to fetch a genuine alternate road route via OSRM for a "faster
+// route" reroute; falls back to a manually offset waypoint (still visibly
+// a different path, just not a real alternate road) when OSRM has no
+// alternate to offer, or is unreachable entirely. Draws the result and
+// returns its { distanceKm, minutes }.
+//
+// `fallbackMinutes`/`fallbackDistanceKm` are a last resort, used ONLY when
+// OSRM is unreachable and there's no real duration to work from at all —
+// they must never override a real OSRM number, or "faster" could end up
+// SLOWER than the route actually shown (e.g. a fixed "~2h30m" guess is
+// slower than a real 2h01m primary route). Whenever OSRM did return at
+// least one real route, "faster" is always computed relative to it (a
+// proportional shave off its real duration), never a fixed guess.
+async function resolveFasterRoute(map, origin, destination, altWaypoint, fallbackMinutes, fallbackDistanceKm) {
+  const routes = await fetchOsrmRoutes([origin, destination], { alternatives: true })
+  if (routes?.[1]) {
+    drawRouteTo(map, routes[1].coordinates)
+    return { distanceKm: routes[1].distanceKm, minutes: routes[1].minutes }
+  }
+  drawRouteTo(map, [origin, altWaypoint, destination])
+  if (routes?.length) {
+    return { distanceKm: routes[0].distanceKm, minutes: Math.max(1, Math.round(routes[0].minutes * 0.85)) }
+  }
+  const distanceKm = fallbackDistanceKm ?? haversineKm(origin, destination)
+  return { distanceKm, minutes: fallbackMinutes ?? Math.max(1, Math.round(estimateMinutes(distanceKm) * 0.85)) }
 }
 
 // "passenger" wins if mentioned; "driver"/"me"/"I'm" mean driver; otherwise
@@ -411,9 +528,9 @@ async function geocodeAndRoute(placeQuery, ctx) {
 
     const dest = [parseFloat(results[0].lon), parseFloat(results[0].lat)]
     const subtitle = results[0].display_name?.split(',').slice(0, 2).join(',').trim() ?? label
-    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, dest)
+    const { distanceKm, minutes } = await showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, dest)
 
-    const route = buildRoute(label, subtitle, dest)
+    const route = buildRoute(label, subtitle, dest, distanceKm, minutes)
     setRoute(route)
     return `Navigating to ${label} — ${route.distanceKm.toFixed(1)} km away.`
   } catch {
@@ -472,12 +589,16 @@ function runCopilotIntent(rawText, ctx) {
 
   // Any other charging mention routes to the fixed local charger (Hinjewadi)
   // — this is an EV, so charging is the only "refuel" concept. The marker
-  // and route only appear now, on request.
+  // and route only appear now, on request. showChargerRoute is async (it
+  // resolves the real road route via OSRM), so this branch returns a
+  // Promise — handleCopilotSubmit already supports that (see geocodeAndRoute).
   if (mentionsCharge) {
-    showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
-    const route = buildRoute('Charging Station', 'Hinjewadi, Pune', CHARGER_POSITION)
-    setRoute(route)
-    return `Rerouting to the nearest charging station in Hinjewadi — ${route.distanceKm.toFixed(1)} km away.`
+    return (async () => {
+      const { distanceKm, minutes } = await showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
+      const route = buildRoute('Charging Station', 'Hinjewadi, Pune', CHARGER_POSITION, distanceKm, minutes)
+      setRoute(route)
+      return `Rerouting to the nearest charging station in Hinjewadi — ${route.distanceKm.toFixed(1)} km away.`
+    })()
   }
 
   if (/somewhere warm|somewhere hot/.test(text)) {
@@ -1435,9 +1556,9 @@ function App() {
       id: Date.now(),
       kind: 'lowBattery',
       primaryLabel: 'Reroute',
-      action: () => {
-        showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
-        const chargerRoute = buildRoute('Charging Station', 'Hinjewadi, Pune', CHARGER_POSITION)
+      action: async () => {
+        const { distanceKm, minutes } = await showChargerRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef)
+        const chargerRoute = buildRoute('Charging Station', 'Hinjewadi, Pune', CHARGER_POSITION, distanceKm, minutes)
         setRoute(chargerRoute)
         setCopilotResponse({
           id: Date.now(),
@@ -1458,12 +1579,18 @@ function App() {
       id: Date.now(),
       kind: 'range',
       primaryLabel: 'Add Charging Stop',
-      action: () => {
+      action: async () => {
         // Satara sits on the way south (e.g. toward the Goa long trip),
         // unlike the Hinjewadi charger — keep the original destination's
         // marker up too and route through the stop, not straight to it.
-        showChargerStopEnRoute(mapRef.current, chargerMarkerRef, destinationMarkerRef, RANGE_CHARGER_POSITION, route.destination)
-        const chargerRoute = buildRoute('Charging Stop', 'Satara, Maharashtra', RANGE_CHARGER_POSITION)
+        const { distanceKm, minutes } = await showChargerStopEnRoute(
+          mapRef.current,
+          chargerMarkerRef,
+          destinationMarkerRef,
+          RANGE_CHARGER_POSITION,
+          route.destination
+        )
+        const chargerRoute = buildRoute('Charging Stop', 'Satara, Maharashtra', RANGE_CHARGER_POSITION, distanceKm, minutes)
         setRoute(chargerRoute)
         setCopilotResponse({
           id: Date.now(),
@@ -1520,22 +1647,28 @@ function App() {
     }
   }
 
-  // Draws the baseline meeting route and sets it active, with no copilot
-  // response of its own. Same-city Koregaon Park by default (idle's
-  // "Start Navigation" accept, and congested's pre-seed) — or, for
-  // cruising, the inter-city Pune -> Mumbai trip, with its ETA overridden
-  // to land just past the 6 PM meeting (see MEETING_LATE_MINUTES) so the
-  // "at risk" suggestion that follows (see handleSimMeeting) has a real
-  // reason to fire. Returns the route so callers can report on it.
-  const establishMeetingRoute = (scenario) => {
+  // Draws the baseline meeting route (real road route via OSRM, falling
+  // back to a straight line) and sets it active, with no copilot response
+  // of its own. Same-city Koregaon Park by default (idle's "Start
+  // Navigation" accept, and congested's pre-seed) — or, for cruising, the
+  // inter-city Pune -> Lower Parel trip, with a realistic fallback
+  // distance/time (see LOWER_PAREL_FALLBACK_*) for when OSRM itself is
+  // unreachable. Returns the route so callers can report on it.
+  const establishMeetingRoute = async (scenario) => {
     if (scenario === 'cruising') {
-      showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MUMBAI_POSITION)
-      const meetingRoute = { ...buildRoute('Mumbai', 'Meeting location', MUMBAI_POSITION), minutes: MEETING_LATE_MINUTES }
+      const { distanceKm, minutes } = await showDestinationRoute(
+        mapRef.current,
+        destinationMarkerRef,
+        chargerMarkerRef,
+        LOWER_PAREL_POSITION,
+        { distanceKm: LOWER_PAREL_FALLBACK_DISTANCE_KM, minutes: LOWER_PAREL_FALLBACK_MINUTES }
+      )
+      const meetingRoute = buildRoute('Lower Parel', 'Mumbai', LOWER_PAREL_POSITION, distanceKm, minutes)
       setRoute(meetingRoute)
       return meetingRoute
     }
-    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
-    const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION)
+    const { distanceKm, minutes } = await showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, MEETING_DESTINATION)
+    const meetingRoute = buildRoute('Koregaon Park', 'Meeting location', MEETING_DESTINATION, distanceKm, minutes)
     setRoute(meetingRoute)
     return meetingRoute
   }
@@ -1545,34 +1678,34 @@ function App() {
   // suggestion kinds, it has no fixed action captured at creation time.
   // resolveMeetingSuggestion's actionKind (computed fresh at click time)
   // says which of these to run.
-  const runMeetingAction = (actionKind) => {
+  const runMeetingAction = async (actionKind) => {
     if (actionKind === 'reroute' && loadLevel === 'cruising') {
-      // Same Pune -> Mumbai trip, different path — redrawn through an
-      // offset waypoint so it's visibly a new route, with the ETA brought
-      // back under the 6 PM meeting (see MEETING_FASTER_MINUTES).
-      drawRouteTo(mapRef.current, [VEHICLE_POSITION, MUMBAI_ALT_WAYPOINT, MUMBAI_POSITION])
-      const baseRoute = buildRoute('Mumbai', 'Faster route to your meeting', MUMBAI_POSITION)
-      const fasterRoute = { ...baseRoute, minutes: MEETING_FASTER_MINUTES }
+      // Same Pune -> Lower Parel trip, a genuinely different road path via
+      // OSRM's alternate-route data where available.
+      const { distanceKm, minutes } = await resolveFasterRoute(
+        mapRef.current,
+        VEHICLE_POSITION,
+        LOWER_PAREL_POSITION,
+        LOWER_PAREL_ALT_WAYPOINT,
+        LOWER_PAREL_FALLBACK_FASTER_MINUTES,
+        LOWER_PAREL_FALLBACK_DISTANCE_KM
+      )
+      const fasterRoute = buildRoute('Lower Parel', 'Faster route to your meeting', LOWER_PAREL_POSITION, distanceKm, minutes)
       setRoute(fasterRoute)
       setCopilotResponse({
         id: Date.now(),
-        text: `Rerouting — faster path to Mumbai, now arriving ${formatETA(fasterRoute.minutes)}.`,
+        text: `Rerouting — faster path to Lower Parel, now ${formatDuration(minutes)} (arriving ${formatETA(minutes)}).`,
       })
       return
     }
     if (actionKind === 'reroute') {
-      // congested — same origin/destination, different path — redraws the
-      // line through an offset waypoint so it's visibly a new route, not
-      // the old one redrawn, and shaves a few minutes off the ETA to
-      // reflect lighter traffic on the alternate (straight-line distance
-      // is unchanged, since the endpoints haven't moved).
-      drawRouteTo(mapRef.current, [VEHICLE_POSITION, MEETING_ALT_WAYPOINT, MEETING_DESTINATION])
-      const baseRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION)
-      const fasterRoute = { ...baseRoute, minutes: Math.max(1, baseRoute.minutes - 4) }
+      // congested — same origin/destination, a genuinely different road path.
+      const { distanceKm, minutes } = await resolveFasterRoute(mapRef.current, VEHICLE_POSITION, MEETING_DESTINATION, MEETING_ALT_WAYPOINT)
+      const fasterRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION, distanceKm, minutes)
       setRoute(fasterRoute)
       setCopilotResponse({
         id: Date.now(),
-        text: `Rerouting — faster path to Koregaon Park, now ${fasterRoute.minutes} min.`,
+        text: `Rerouting — faster path to Koregaon Park, now ${formatDuration(minutes)}.`,
       })
       return
     }
@@ -1583,7 +1716,7 @@ function App() {
     }
     // 'start' — the calendar knows the destination, but nothing is on the
     // map yet, so this sets the initial route.
-    const meetingRoute = establishMeetingRoute()
+    const meetingRoute = await establishMeetingRoute()
     setCopilotResponse({
       id: Date.now(),
       text: `Navigating to Koregaon Park — ${meetingRoute.distanceKm.toFixed(1)} km away.`,
@@ -1602,9 +1735,9 @@ function App() {
 
   const handleDismissSuggestion = () => setProactiveSuggestion(null)
 
-  const handleSimLongTrip = () => {
-    showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, LONG_TRIP_DESTINATION)
-    const longRoute = buildRoute('Goa', 'South Goa Coast', LONG_TRIP_DESTINATION)
+  const handleSimLongTrip = async () => {
+    const { distanceKm, minutes } = await showDestinationRoute(mapRef.current, destinationMarkerRef, chargerMarkerRef, LONG_TRIP_DESTINATION)
+    const longRoute = buildRoute('Goa', 'South Goa Coast', LONG_TRIP_DESTINATION, distanceKm, minutes)
     setRoute(longRoute)
   }
 
@@ -1613,15 +1746,16 @@ function App() {
   // Cruising/congested mean the driver is already underway, so — unlike
   // idle, which stays route-less until "Start Navigation" is accepted —
   // this silently pre-seeds the "already driving to the meeting" route
-  // first, so the suggestion's "your route"/"faster route" framing is
-  // never talking about a route that doesn't actually exist yet. Cruising
-  // gets the inter-city Pune -> Mumbai trip; congested keeps the same-city
-  // Koregaon Park trip, unchanged.
-  const handleSimMeeting = () => {
+  // first (awaited, so the suggestion never flashes the wrong framing
+  // before the route resolves), so the suggestion's "your route"/"faster
+  // route" wording is never talking about a route that doesn't actually
+  // exist yet. Cruising gets the inter-city Pune -> Lower Parel trip;
+  // congested keeps the same-city Koregaon Park trip, unchanged.
+  const handleSimMeeting = async () => {
     if (loadLevel === 'cruising') {
-      establishMeetingRoute('cruising')
+      await establishMeetingRoute('cruising')
     } else if (loadLevel === 'congested') {
-      establishMeetingRoute()
+      await establishMeetingRoute()
     }
     setProactiveSuggestion({ id: Date.now(), kind: 'meeting' })
   }
