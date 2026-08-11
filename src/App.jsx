@@ -473,10 +473,12 @@ function clearActiveRoute(map, chargerMarkerRef, destinationMarkerRef) {
 }
 
 // Tries to fetch a genuine alternate road route via OSRM for a "faster
-// route" reroute; falls back to a manually offset waypoint (still visibly
-// a different path, just not a real alternate road) when OSRM has no
-// alternate to offer, or is unreachable entirely. Draws the result and
-// returns its { distanceKm, minutes }.
+// route" reroute — same fetchOsrmRoutes + drawRouteTo path the initial
+// route uses, so the reroute is always road-following too, never a
+// straight line, as long as OSRM returned anything at all. Only falls back
+// to a manually offset waypoint (a straight-ish line, not a real road) if
+// the OSRM request itself fails outright. Draws the result and returns its
+// { distanceKm, minutes }.
 //
 // `fallbackMinutes`/`fallbackDistanceKm` are a last resort, used ONLY when
 // OSRM is unreachable and there's no real duration to work from at all —
@@ -488,13 +490,18 @@ function clearActiveRoute(map, chargerMarkerRef, destinationMarkerRef) {
 async function resolveFasterRoute(map, origin, destination, altWaypoint, fallbackMinutes, fallbackDistanceKm) {
   const routes = await fetchOsrmRoutes([origin, destination], { alternatives: true })
   if (routes?.[1]) {
+    // A genuine second alternate road route.
     drawRouteTo(map, routes[1].coordinates)
     return { distanceKm: routes[1].distanceKm, minutes: routes[1].minutes }
   }
-  drawRouteTo(map, [origin, altWaypoint, destination])
   if (routes?.length) {
+    // OSRM only offered one road route — still draw ITS real geometry
+    // (not a straight line), just shave the time to reflect "faster".
+    drawRouteTo(map, routes[0].coordinates)
     return { distanceKm: routes[0].distanceKm, minutes: Math.max(1, Math.round(routes[0].minutes * 0.85)) }
   }
+  // OSRM unreachable entirely — only now fall back to a straight-ish line.
+  drawRouteTo(map, [origin, altWaypoint, destination])
   const distanceKm = fallbackDistanceKm ?? haversineKm(origin, destination)
   return { distanceKm, minutes: fallbackMinutes ?? Math.max(1, Math.round(estimateMinutes(distanceKm) * 0.85)) }
 }
