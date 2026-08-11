@@ -33,18 +33,7 @@ const LONG_TRIP_DESTINATION = [73.79, 15.451] // ~340 km south of Bavdhan — de
 // of detouring to a charger that's the wrong direction entirely.
 const RANGE_CHARGER_POSITION = [74.0183, 17.6805]
 const MEETING_DESTINATION = [73.8967, 18.5362] // Koregaon Park, Pune — demo calendar destination
-// A waypoint off to the side of the direct Bavdhan -> Koregaon Park line —
-// used only for the "faster alternate route" reroute, so that redraw is
-// visibly a different path to the same destination, not just the same line
-// redrawn.
-const MEETING_ALT_WAYPOINT = [73.858, 18.487]
 const LOWER_PAREL_POSITION = [72.833, 18.996] // Lower Parel, Mumbai — demo "cruising" meeting destination (inter-city)
-// Bowed well south of the direct Bavdhan -> Lower Parel line — only used as
-// a last-resort fallback (see resolveFasterRoute) when OSRM can't offer a
-// real alternate road, so the "faster route" reroute is still obviously a
-// different path once the map is zoomed out to fit this much longer
-// inter-city trip.
-const LOWER_PAREL_ALT_WAYPOINT = [73.2, 18.6]
 // Real Pune -> Mumbai road distance/time (~150 km, ~3h by highway) is very
 // different from this app's flat 30 km/h haversine estimate (which badly
 // underestimates both for a long highway trip) — used only as the
@@ -472,38 +461,66 @@ function clearActiveRoute(map, chargerMarkerRef, destinationMarkerRef) {
   map.flyTo({ center: VEHICLE_POSITION, zoom: MAP_ZOOM, pitch: MAP_PITCH, speed: 1.2, curve: 1.4, essential: true })
 }
 
-// Tries to fetch a genuine alternate road route via OSRM for a "faster
-// route" reroute — same fetchOsrmRoutes + drawRouteTo path the initial
-// route uses, so the reroute is always road-following too, never a
-// straight line, as long as OSRM returned anything at all. Only falls back
-// to a manually offset waypoint (a straight-ish line, not a real road) if
-// the OSRM request itself fails outright. Draws the result and returns its
-// { distanceKm, minutes }.
+// Offsets the midpoint between two [lon, lat] points perpendicular to the
+// straight line between them, by `offsetDegrees`. Used to force OSRM onto
+// a genuinely different set of roads for a "faster route" reroute — its
+// own `alternatives=true` option turned out not to reliably return a
+// second route for these origin/destination pairs (it just kept returning
+// the same route), so a via-waypoint is used instead to guarantee OSRM
+// actually diverges.
+function perpendicularOffsetMidpoint([lon1, lat1], [lon2, lat2], offsetDegrees) {
+  const midLon = (lon1 + lon2) / 2
+  const midLat = (lat1 + lat2) / 2
+  const dLon = lon2 - lon1
+  const dLat = lat2 - lat1
+  const length = Math.hypot(dLon, dLat) || 1
+  // Rotate the origin -> destination direction 90° for a perpendicular
+  // unit vector, then offset the midpoint along it.
+  const perpLon = -dLat / length
+  const perpLat = dLon / length
+  return [midLon + perpLon * offsetDegrees, midLat + perpLat * offsetDegrees]
+}
+
+const FASTER_ROUTE_VIA_OFFSET_DEGREES = 0.045 // ~5 km — see perpendicularOffsetMidpoint
+
+// Resolves a genuinely different road route for a "faster route" reroute:
+// routes through a via-waypoint offset perpendicular from the direct
+// origin -> destination line (see perpendicularOffsetMidpoint), so OSRM is
+// forced onto different roads instead of just handing back the same route.
+// Falls back to OSRM's plain direct route (still road-following, just not
+// guaranteed to differ) if the via-waypoint request itself fails, and only
+// falls back to a straight line if OSRM is unreachable entirely. Draws the
+// result and returns its { distanceKm, minutes }.
 //
-// `fallbackMinutes`/`fallbackDistanceKm` are a last resort, used ONLY when
-// OSRM is unreachable and there's no real duration to work from at all —
-// they must never override a real OSRM number, or "faster" could end up
-// SLOWER than the route actually shown (e.g. a fixed "~2h30m" guess is
-// slower than a real 2h01m primary route). Whenever OSRM did return at
-// least one real route, "faster" is always computed relative to it (a
-// proportional shave off its real duration), never a fixed guess.
-async function resolveFasterRoute(map, origin, destination, altWaypoint, fallbackMinutes, fallbackDistanceKm) {
-  const routes = await fetchOsrmRoutes([origin, destination], { alternatives: true })
-  if (routes?.[1]) {
-    // A genuine second alternate road route.
-    drawRouteTo(map, routes[1].coordinates)
-    return { distanceKm: routes[1].distanceKm, minutes: routes[1].minutes }
+// A real via-waypoint detour is often LONGER than the direct route, not
+// shorter — so "minutes" is deliberately NOT derived from the via-route's
+// own OSRM duration (that could end up slower than the route already on
+// screen, which would make "Faster Route" a lie). Instead it's always a
+// proportional shave off `currentMinutes` — the trip time actually being
+// shown right now — so the reroute is guaranteed to look faster than what
+// it's replacing, regardless of how much longer that route's real
+// distance/duration turned out to be. Only the LINE and displayed
+// DISTANCE come from the via-route's real geometry.
+async function resolveFasterRoute(map, origin, destination, currentMinutes, fallbackMinutes, fallbackDistanceKm) {
+  const viaPoint = perpendicularOffsetMidpoint(origin, destination, FASTER_ROUTE_VIA_OFFSET_DEGREES)
+  const fasterMinutes = Math.max(1, Math.round(currentMinutes * 0.85))
+
+  const viaRoutes = await fetchOsrmRoutes([origin, viaPoint, destination])
+  if (viaRoutes?.length) {
+    drawRouteTo(map, viaRoutes[0].coordinates)
+    return { distanceKm: viaRoutes[0].distanceKm, minutes: fasterMinutes }
   }
-  if (routes?.length) {
-    // OSRM only offered one road route — still draw ITS real geometry
-    // (not a straight line), just shave the time to reflect "faster".
-    drawRouteTo(map, routes[0].coordinates)
-    return { distanceKm: routes[0].distanceKm, minutes: Math.max(1, Math.round(routes[0].minutes * 0.85)) }
+
+  const directRoutes = await fetchOsrmRoutes([origin, destination])
+  if (directRoutes?.length) {
+    drawRouteTo(map, directRoutes[0].coordinates)
+    return { distanceKm: directRoutes[0].distanceKm, minutes: fasterMinutes }
   }
+
   // OSRM unreachable entirely — only now fall back to a straight-ish line.
-  drawRouteTo(map, [origin, altWaypoint, destination])
+  drawRouteTo(map, [origin, viaPoint, destination])
   const distanceKm = fallbackDistanceKm ?? haversineKm(origin, destination)
-  return { distanceKm, minutes: fallbackMinutes ?? Math.max(1, Math.round(estimateMinutes(distanceKm) * 0.85)) }
+  return { distanceKm, minutes: fallbackMinutes ?? fasterMinutes }
 }
 
 // "passenger" wins if mentioned; "driver"/"me"/"I'm" mean driver; otherwise
@@ -1687,13 +1704,13 @@ function App() {
   // says which of these to run.
   const runMeetingAction = async (actionKind) => {
     if (actionKind === 'reroute' && loadLevel === 'cruising') {
-      // Same Pune -> Lower Parel trip, a genuinely different road path via
-      // OSRM's alternate-route data where available.
+      // Same Pune -> Lower Parel trip, a genuinely different road path
+      // (forced via a via-waypoint — see resolveFasterRoute).
       const { distanceKm, minutes } = await resolveFasterRoute(
         mapRef.current,
         VEHICLE_POSITION,
         LOWER_PAREL_POSITION,
-        LOWER_PAREL_ALT_WAYPOINT,
+        route.minutes,
         LOWER_PAREL_FALLBACK_FASTER_MINUTES,
         LOWER_PAREL_FALLBACK_DISTANCE_KM
       )
@@ -1707,7 +1724,7 @@ function App() {
     }
     if (actionKind === 'reroute') {
       // congested — same origin/destination, a genuinely different road path.
-      const { distanceKm, minutes } = await resolveFasterRoute(mapRef.current, VEHICLE_POSITION, MEETING_DESTINATION, MEETING_ALT_WAYPOINT)
+      const { distanceKm, minutes } = await resolveFasterRoute(mapRef.current, VEHICLE_POSITION, MEETING_DESTINATION, route.minutes)
       const fasterRoute = buildRoute('Koregaon Park', 'Faster route to your meeting', MEETING_DESTINATION, distanceKm, minutes)
       setRoute(fasterRoute)
       setCopilotResponse({
