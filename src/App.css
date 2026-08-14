@@ -228,31 +228,6 @@ body {
   height: 18px;
 }
 
-.alert-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--touch-min);
-  height: var(--touch-min);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, var(--card-top), var(--card-bottom));
-  color: var(--text-muted);
-  cursor: pointer;
-  box-shadow: var(--card-shadow), var(--card-highlight);
-  transition: color 0.2s, border-color 0.2s;
-}
-
-.alert-btn svg {
-  width: 22px;
-  height: 22px;
-}
-
-.alert-btn:hover {
-  color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
 /* ── Content layout ── */
 .content-area {
   display: flex;

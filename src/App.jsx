@@ -780,12 +780,6 @@ function TopBar({ outsideTemp }) {
           </svg>
           {outsideTemp}°C
         </span>
-        <button type="button" className="alert-btn" aria-label="Alerts">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <path d="M12 4L3 20h18L12 4z" strokeLinejoin="round" />
-            <path d="M12 10.5v4M12 17.2h.01" strokeLinecap="round" />
-          </svg>
-        </button>
       </div>
     </header>
   )
