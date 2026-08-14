@@ -1517,9 +1517,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
+  gap: 8px 14px;
   flex-shrink: 0;
-  padding: 4px 16px;
+  padding: 9px 20px;
   background: #000000;
   border-top: 1px solid #1c1c1c;
   font-family: var(--font);
@@ -1527,7 +1527,7 @@ body {
 
 .demo-bar__caption {
   flex-shrink: 0;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1537,38 +1537,38 @@ body {
 .demo-bar__group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .demo-bar__group-label {
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   color: #666666;
 }
 
 .demo-bar__divider {
   width: 1px;
-  height: 14px;
+  height: 18px;
   flex-shrink: 0;
   background: #262626;
 }
 
 .demo-bar__segmented {
   display: flex;
-  gap: 3px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
 .demo-bar__segment {
-  padding: 3px 9px;
+  padding: 6px 14px;
   border: 1px solid #2a2a2a;
-  border-radius: 4px;
+  border-radius: 5px;
   background: #131313;
   color: #767676;
   font-family: var(--font);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
@@ -1590,7 +1590,7 @@ body {
 }
 
 .demo-bar__readout {
-  font-size: 10px;
+  font-size: 12px;
   color: #5c5c5c;
   font-variant-numeric: tabular-nums;
 }

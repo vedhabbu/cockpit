@@ -72,6 +72,10 @@ const IDLE_MANEUVER = {
 // Matches the static "05:20 PM" shown in TopBar — this cockpit has no live
 // clock, so ETA math is anchored to that fixed displayed time.
 const APP_CLOCK = { hours: 17, minutes: 20 }
+// Fixed ambient temperature shown in TopBar and the demo bar's readout —
+// there's no simulation trigger that changes this anymore (the old
+// "Weather" demo button was removed), so it's a plain constant, not state.
+const OUTSIDE_TEMP = 17
 
 const NAV_ITEMS = [
   { id: 'nav', label: 'Nav', icon: 'nav' },
@@ -90,11 +94,10 @@ const LOAD_LEVELS = [
 ]
 
 // Demo bar simulation triggers — mutually exclusive, so only one of these
-// four can ever be the active simulation at a time.
+// three can ever be the active simulation at a time.
 const SIMULATIONS = [
   { id: 'lowBattery', label: 'Low Battery', activeLabel: 'Reset Battery', warning: true },
   { id: 'longTrip', label: 'Long Trip', activeLabel: 'Reset Trip', warning: false },
-  { id: 'weather', label: 'Weather', activeLabel: 'Reset Weather', warning: true },
   { id: 'meeting', label: 'Meeting', activeLabel: 'Reset Meeting', warning: false },
 ]
 
@@ -128,12 +131,6 @@ const RANGE_MESSAGES = {
   congested: "Traffic's cutting your range short of the destination. Reroute via a charger?",
 }
 
-const COLD_WEATHER_MESSAGES = {
-  idle: "It's 4°C. Want me to pre-warm the cabin so it's ready when you leave?",
-  cruising: 'Bit cold out. Want the cabin warmer?',
-  congested: "Cold and stuck in traffic — I can warm the cabin to keep you comfortable. Go ahead?",
-}
-
 // Keyed by suggestion.kind so the active suggestion's displayed text can be
 // re-derived from the CURRENT loadLevel at render time, instead of being
 // frozen at whatever loadLevel was active the moment it fired. 'meeting' is
@@ -142,7 +139,6 @@ const COLD_WEATHER_MESSAGES = {
 const SUGGESTION_MESSAGES_BY_KIND = {
   lowBattery: LOW_BATTERY_MESSAGES,
   range: RANGE_MESSAGES,
-  coldWeather: COLD_WEATHER_MESSAGES,
 }
 
 const MEETING_TIME_MINUTES = 18 * 60 // 6:00 PM — the Koregaon Park meeting (idle/congested)
@@ -1255,7 +1251,7 @@ function DemoControlBar({
 
       <div className="demo-bar__group">
         <span className="demo-bar__group-label">Simulation:</span>
-        {/* Mutually exclusive: exactly one (or none) of these four can be
+        {/* Mutually exclusive: exactly one (or none) of these three can be
             active at a time — selecting one deactivates whatever was
             active before it, both visually and in the underlying state. */}
         <div className="demo-bar__segmented" role="group" aria-label="Simulation triggers">
@@ -1508,7 +1504,6 @@ function App() {
   const destinationMarkerRef = useRef(null)
   const [copilotResponse, setCopilotResponse] = useState(null)
   const [batteryLevel, setBatteryLevel] = useState(78)
-  const [outsideTemp, setOutsideTemp] = useState(17)
   // The single source of truth for "where are we headed": null means idle
   // (no active route). The maneuver banner and trip meta are both derived
   // from it so they can never show conflicting info. Declared early because
@@ -1557,8 +1552,8 @@ function App() {
   }, [proactiveSuggestion?.id])
 
   // Which demo-bar simulation (if any) is currently active — the single
-  // source of truth that keeps the four Simulation buttons mutually
-  // exclusive. 'lowBattery' | 'longTrip' | 'weather' | 'meeting' | null.
+  // source of truth that keeps the three Simulation buttons mutually
+  // exclusive. 'lowBattery' | 'longTrip' | 'meeting' | null.
   const [activeSimulation, setActiveSimulation] = useState(null)
 
   // Navigation focus mode: any active route means the driver just accepted
@@ -1639,23 +1634,6 @@ function App() {
       },
     })
   }, [route])
-
-  // Cold weather: offer to pre-warm the cabin — skipped once both zones are
-  // already at or above the target temperature.
-  useEffect(() => {
-    if (outsideTemp >= 10) return
-    if (driverTemp >= 22 && passengerTemp >= 22) return
-    setProactiveSuggestion({
-      id: Date.now(),
-      kind: 'coldWeather',
-      primaryLabel: 'Warm Up',
-      action: () => {
-        setDriverTemp(22)
-        setPassengerTemp(22)
-        setCopilotResponse({ id: Date.now(), text: 'Warming up the cabin to 22°C for both zones.' })
-      },
-    })
-  }, [outsideTemp])
 
   const handleNextTrack = () => {
     setTrackIndex((i) => (i + 1) % PLAYLIST.length)
@@ -1821,7 +1799,6 @@ function App() {
   // turning off) another simulation never leaves stale state behind.
   const deactivateSimulation = (sim) => {
     if (sim === 'lowBattery') setBatteryLevel(78)
-    if (sim === 'weather') setOutsideTemp(17)
     // longTrip always has a route; meeting only does when triggered while
     // cruising/congested (see handleSimMeeting) — clearing unconditionally
     // is harmless either way, since setRoute(null)/clearActiveRoute on an
@@ -1833,7 +1810,7 @@ function App() {
     setProactiveSuggestion(null)
   }
 
-  // The demo bar's four Simulation buttons are mutually exclusive: picking
+  // The demo bar's three Simulation buttons are mutually exclusive: picking
   // one deactivates whatever was active before it, then activates the new
   // one; picking the already-active one just turns it off.
   const handleToggleSimulation = (sim) => {
@@ -1844,7 +1821,6 @@ function App() {
     }
     if (activeSimulation) deactivateSimulation(activeSimulation)
     if (sim === 'lowBattery') setBatteryLevel(18)
-    if (sim === 'weather') setOutsideTemp(4)
     if (sim === 'longTrip') handleSimLongTrip()
     if (sim === 'meeting') handleSimMeeting()
     setActiveSimulation(sim)
@@ -1855,7 +1831,7 @@ function App() {
       <div className="cockpit">
         <NavRail activeId={activeNav} onSelect={setActiveNav} />
         <div className="main-panel">
-          <TopBar outsideTemp={outsideTemp} />
+          <TopBar outsideTemp={OUTSIDE_TEMP} />
           <div className={`content-area${proactiveSuggestion ? ' content-area--compact' : ''}`}>
             <div className="left-column">
               <SpeedHeroPanel gear={gear} onGearChange={setGear} loadLevel={loadLevel} batteryLevel={batteryLevel} />
@@ -1912,7 +1888,7 @@ function App() {
         loadLevel={loadLevel}
         onChange={setLoadLevel}
         batteryLevel={batteryLevel}
-        outsideTemp={outsideTemp}
+        outsideTemp={OUTSIDE_TEMP}
         activeSimulation={activeSimulation}
         onToggleSimulation={handleToggleSimulation}
         voiceMuted={voiceMuted}
