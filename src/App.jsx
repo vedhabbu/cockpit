@@ -119,10 +119,15 @@ const EFFICIENCY_BY_LOAD = {
 // heads-up; congested is the highest-cognitive-load context, so the copy is
 // briefest and — where the action allows it — offers to just handle it
 // rather than asking the driver to weigh options.
+// Deliberate progression: idle (parked, attention free) is an open-ended
+// OFFER; cruising (driving, brief but informative) leads with the key fact
+// so the driver doesn't have to ask, then offers; congested (high
+// workload) skips straight to a RECOMMENDATION with the action already
+// prepared, minimizing decisions.
 const LOW_BATTERY_MESSAGES = {
-  idle: 'Battery low. Want me to find the nearest charger?',
-  cruising: "Battery's running low. Route to the nearest charger?",
-  congested: "Battery low and traffic's draining it fast. I'll route to the nearest charger — go?",
+  idle: 'Battery is low. Want me to find a charger?',
+  cruising: "Battery's running low. Nearest charger is 11 km ahead. Route there?",
+  congested: "Battery is low and traffic's draining it fast. I'll route to the charger ahead — go?",
 }
 
 const RANGE_MESSAGES = {
